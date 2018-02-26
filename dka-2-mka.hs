@@ -1,5 +1,6 @@
 import System.Environment
 import System.IO
+import Data.List
 
 type State = String
 type Symbol = String
@@ -46,6 +47,22 @@ parseInput lines = DKA {
     endStates = splitStringByPredicate (==',') (lines!!2)
 }
 
+printTransition :: Transition -> String
+printTransition transition = "    " ++ (inputState transition) ++ " -> " ++ (symbol transition) ++ " -> " ++ (outputState transition)
+
+printDKA :: DKA -> IO ()
+printDKA dka = do 
+            putStr "States: "
+            putStrLn (intercalate "," (states dka))
+            putStr "Alphabet: "
+            putStrLn (intercalate "," (alphabet dka))
+            putStrLn "Transitions: "
+            mapM_ putStrLn (map printTransition (transitions dka))  
+            putStr "Init state: "
+            putStrLn (initState dka)
+            putStr "End states: "
+            putStrLn (intercalate "," (endStates dka))
+
 main = do 
     arguments <- getArgs
     let argLength = length arguments
@@ -57,13 +74,11 @@ main = do
     contents <- hGetContents handle
     let parsedInput = parseInput (lines contents)
     case head arguments of
-        "-i" -> print "Option -i"    
+        "-i" -> printDKA parsedInput    
         "-t" -> print "Option -t"
         _ -> error "Invalid first argument."
 
-    
-    -- TODO parse input to structure representing FSM
-    print parsedInput    
+        
 
     hClose handle
     return ()
