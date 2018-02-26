@@ -52,16 +52,36 @@ printTransition transition = "    " ++ (inputState transition) ++ " -> " ++ (sym
 
 printDKA :: DKA -> IO ()
 printDKA dka = do 
-            putStr "States: "
-            putStrLn (intercalate "," (states dka))
-            putStr "Alphabet: "
-            putStrLn (intercalate "," (alphabet dka))
-            putStrLn "Transitions: "
-            mapM_ putStrLn (map printTransition (transitions dka))  
-            putStr "Init state: "
-            putStrLn (initState dka)
-            putStr "End states: "
-            putStrLn (intercalate "," (endStates dka))
+    putStr "States: "
+    putStrLn (intercalate "," (states dka))
+    putStr "Alphabet: "
+    putStrLn (intercalate "," (alphabet dka))
+    putStrLn "Transitions: "
+    mapM_ putStrLn (map printTransition (transitions dka))  
+    putStr "Init state: "
+    putStrLn (initState dka)
+    putStr "End states: "
+    putStrLn (intercalate "," (endStates dka))
+
+eliminateInaccessibleStates :: [Transition] -> [State] -> [State]
+eliminateInaccessibleStates transitions init =
+--    foldr (\transition list -> if (inputState transition) `elem` list then (outputState transition):list else list) ((:[]) init) transitions
+    let computedStates = (foldr (\transition list -> if (inputState transition) `elem` list then (outputState transition):list else list) (init) transitions):init
+    in if computedStates!!0 == computedStates!!1
+        then computedStates!!0
+        else (eliminateInaccessibleStates transitions (computedStates!!0)):[]
+
+
+getReducedDKA :: DKA -> DKA
+getReducedDKA inputDKA = DKA {
+--        states = states inputDKA,
+        states = eliminateInaccessibleStates (transitions inputDKA) ((:[]) (initState inputDKA)),
+        alphabet = alphabet inputDKA,
+--        transitions = filter (\transition -> inputState transition == initState inputDKA) (transitions inputDKA),
+        transitions = transitions inputDKA,
+        initState = initState inputDKA,
+        endStates = endStates inputDKA
+    }
 
 main = do 
     arguments <- getArgs
@@ -72,24 +92,12 @@ main = do
                 _ -> error "Invalid number of arguments."
 
     contents <- hGetContents handle
-    let parsedInput = parseInput (lines contents)
+    let parsedDKA = parseInput (lines contents)
     case head arguments of
-        "-i" -> printDKA parsedInput    
-        "-t" -> print "Option -t"
+        "-i" -> printDKA parsedDKA    
+        "-t" -> printDKA (getReducedDKA parsedDKA) 
         _ -> error "Invalid first argument."
 
-        
 
     hClose handle
     return ()
-
--- postup
--- nacitanie parametrov
--- kontrola validity poctu parametrov, u prveho parametru kontrola ze je to jedna z povolenych hodnoty
---	druhy parameter je nepovinny, ak tam je tak kontrola ze taky subor naozaj existuje
---nacitanie vstupu do nejakej struktury, vstup moze mat 2 rozne varianty:	
---	citanie zo stdin - ak neni specifikovany druhy parameter - nacitanie v loope az sa neklikne dvakrat enter
---	citanie zo suboru - az do konca suboru
---ak bola zvolena volba -i, tak vypis vstupu do nejakeho ineho vypisu - napriklad slovny popis ktore hodnoty su co
-
--- kontrola ze pociatocny a koncove stavy sa nachadzaju aj v zozname stavov
