@@ -1,11 +1,15 @@
 import System.Environment
 import System.IO
 
+type State = String
+type Symbol = String
+
 data DKA = DKA {
-                states :: [String],
-                initState :: String,
-                endStates :: [String],
-                transitions :: [String]
+                states :: [State],
+                alphabet :: [Symbol],
+                transitions :: [String],
+                initState :: State,
+                endStates :: [State]
 } deriving (Show)
 
 splitStringByPredicate :: (Char -> Bool) -> String -> [String]
@@ -14,12 +18,20 @@ splitStringByPredicate predicate s = case dropWhile predicate s of
                                               s' -> w : splitStringByPredicate predicate s''
                                                   where (w, s'') = break predicate s'
 
+removeDuplicatesFromList :: (Eq a) => [a] -> [a]
+removeDuplicatesFromList = foldr (\symbol cleanList -> if symbol `elem` cleanList then cleanList else symbol:cleanList) []
+
+getAlphabet :: [String] -> [Symbol]
+getAlphabet transitions = removeDuplicatesFromList (map (\transition -> (splitStringByPredicate (==',') transition) !! 1) transitions)
+
+
 parseInput :: [String] -> DKA
 parseInput lines = DKA {
     states = splitStringByPredicate (==',') (lines!!0),
+    alphabet = getAlphabet (drop 3 lines),
+    transitions = drop 3 lines,
     initState = (lines!!1),
-    endStates = splitStringByPredicate (==',') (lines!!2),
-    transitions = drop 3 lines
+    endStates = splitStringByPredicate (==',') (lines!!2)
 }
 
 main = do 
