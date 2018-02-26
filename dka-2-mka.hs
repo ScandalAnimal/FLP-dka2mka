@@ -4,10 +4,16 @@ import System.IO
 type State = String
 type Symbol = String
 
+data Transition = Transition {
+                inputState :: State,
+                symbol :: Symbol,
+                outputState :: State
+} deriving (Show)
+
 data DKA = DKA {
                 states :: [State],
                 alphabet :: [Symbol],
-                transitions :: [String],
+                transitions :: [Transition],
                 initState :: State,
                 endStates :: [State]
 } deriving (Show)
@@ -24,12 +30,18 @@ removeDuplicatesFromList = foldr (\symbol cleanList -> if symbol `elem` cleanLis
 getAlphabet :: [String] -> [Symbol]
 getAlphabet transitions = removeDuplicatesFromList (map (\transition -> (splitStringByPredicate (==',') transition) !! 1) transitions)
 
+parseTransitions :: [String] -> [Transition]
+parseTransitions transitions = (map (\transition -> (Transition {
+    inputState = (splitStringByPredicate (==',') transition)!!0,
+    symbol = (splitStringByPredicate (==',') transition)!!1,
+    outputState = (splitStringByPredicate (==',') transition)!!2
+}))  transitions)
 
 parseInput :: [String] -> DKA
 parseInput lines = DKA {
     states = splitStringByPredicate (==',') (lines!!0),
     alphabet = getAlphabet (drop 3 lines),
-    transitions = drop 3 lines,
+    transitions = parseTransitions (drop 3 lines),
     initState = (lines!!1),
     endStates = splitStringByPredicate (==',') (lines!!2)
 }
