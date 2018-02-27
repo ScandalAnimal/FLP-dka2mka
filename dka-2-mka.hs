@@ -1,6 +1,7 @@
 import System.Environment
 import System.IO
 import Data.List
+import Debug.Trace
 
 type State = String
 type Symbol = String
@@ -63,19 +64,17 @@ printDKA dka = do
     putStr "End states: "
     putStrLn (intercalate "," (endStates dka))
 
-eliminateInaccessibleStates :: [Transition] -> [State] -> [State]
-eliminateInaccessibleStates transitions init =
---    foldr (\transition list -> if (inputState transition) `elem` list then (outputState transition):list else list) ((:[]) init) transitions
-    let computedStates = (foldr (\transition list -> if (inputState transition) `elem` list then (outputState transition):list else list) (init) transitions):init
-    in if computedStates!!0 == computedStates!!1
-        then computedStates!!0
-        else (eliminateInaccessibleStates transitions (computedStates!!0)):[]
-
+eliminateInaccessibleStates :: [Transition] -> ([State],[State]) -> ([State],[State])
+eliminateInaccessibleStates transitions (x,y) = if (x == y)
+                                                    then (x,y)
+                                                    else let newStates = removeDuplicatesFromList (foldr (\transition list -> if (inputState transition) `elem` list 
+                                                                                                                                  then (outputState transition):list 
+                                                                                                                                  else list) (x) transitions)
+                                                        in eliminateInaccessibleStates transitions (newStates,x)
 
 getReducedDKA :: DKA -> DKA
 getReducedDKA inputDKA = DKA {
---        states = states inputDKA,
-        states = eliminateInaccessibleStates (transitions inputDKA) ((:[]) (initState inputDKA)),
+        states = fst (eliminateInaccessibleStates (transitions inputDKA) ((:[]) (initState inputDKA),[])),
         alphabet = alphabet inputDKA,
 --        transitions = filter (\transition -> inputState transition == initState inputDKA) (transitions inputDKA),
         transitions = transitions inputDKA,
