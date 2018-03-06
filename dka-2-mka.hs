@@ -74,13 +74,15 @@ eliminateInaccessibleStates transitions (x,y) = if (x == y)
 
 getReducedDKA :: DKA -> DKA
 getReducedDKA inputDKA = DKA {
-        states = fst (eliminateInaccessibleStates (transitions inputDKA) ((:[]) (initState inputDKA),[])),
+        states = onlyAccessibleStates,
         alphabet = alphabet inputDKA,
---        transitions = filter (\transition -> inputState transition == initState inputDKA) (transitions inputDKA),
-        transitions = transitions inputDKA,
+        transitions = filter (\transition -> inputState transition `elem` onlyAccessibleStates) (transitions inputDKA),
+        --transitions = transitions inputDKA,
         initState = initState inputDKA,
-        endStates = endStates inputDKA
+        endStates = intersect (endStates inputDKA) onlyAccessibleStates
     }
+    where onlyAccessibleStates = fst (eliminateInaccessibleStates (transitions inputDKA) ((:[]) (initState inputDKA),[]))
+
 
 main = do 
     arguments <- getArgs
