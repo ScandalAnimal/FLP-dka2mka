@@ -86,14 +86,15 @@ createTransitionsToSinkState alphabet states transitions = foldr (\transition cl
 createReducedDKA :: DKA -> DKA
 createReducedDKA inputDKA = DKA {
         states = if ((length transitionsToSinkState) == 0) then onlyAccessibleStates else sinkState:onlyAccessibleStates,
-        alphabet = alphabet inputDKA,
+        alphabet = intersect (alphabet inputDKA) alphabetFromAccessibleStates,
         transitions = foldr (:) transitionsToSinkState transitionsFromAccessibleStates,
         initState = initState inputDKA,
         endStates = intersect (endStates inputDKA) onlyAccessibleStates
     }
     where onlyAccessibleStates = fst (eliminateInaccessibleStates (transitions inputDKA) ((:[]) (initState inputDKA),[]))
           transitionsFromAccessibleStates = filter (\transition -> inputState transition `elem` onlyAccessibleStates) (transitions inputDKA)
-          transitionsToSinkState = createTransitionsToSinkState (alphabet inputDKA) onlyAccessibleStates transitionsFromAccessibleStates
+          alphabetFromAccessibleStates = foldr (\transition cleanList -> (symbol transition):cleanList) [] transitionsFromAccessibleStates
+          transitionsToSinkState = createTransitionsToSinkState alphabetFromAccessibleStates onlyAccessibleStates transitionsFromAccessibleStates
 
 main = do 
     arguments <- getArgs
