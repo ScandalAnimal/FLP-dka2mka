@@ -83,8 +83,8 @@ createTransitionsToSinkState alphabet states transitions = foldr (\transition cl
     where allTransitions = [ (state,symbol) | state <- states, symbol <- alphabet]
           existingTransitions = foldr (\transition cleanList -> (inputState transition, symbol transition):cleanList) [] transitions
 
-createReducedDKA :: DKA -> DKA
-createReducedDKA inputDKA = DKA {
+createWellDefinedDKA :: DKA -> DKA
+createWellDefinedDKA inputDKA = DKA {
         states = if ((length transitionsToSinkState) == 0) then onlyAccessibleStates else sinkState:onlyAccessibleStates,
         alphabet = intersect (alphabet inputDKA) alphabetFromAccessibleStates,
         transitions = foldr (:) transitionsToSinkState transitionsFromAccessibleStates,
@@ -95,6 +95,17 @@ createReducedDKA inputDKA = DKA {
           transitionsFromAccessibleStates = filter (\transition -> inputState transition `elem` onlyAccessibleStates) (transitions inputDKA)
           alphabetFromAccessibleStates = foldr (\transition cleanList -> (symbol transition):cleanList) [] transitionsFromAccessibleStates
           transitionsToSinkState = createTransitionsToSinkState alphabetFromAccessibleStates onlyAccessibleStates transitionsFromAccessibleStates
+
+createReducedDKA :: DKA -> DKA
+createReducedDKA inputDKA = DKA {
+        --states = states inputDKA,
+        states = states inputDKA,
+        alphabet = alphabet inputDKA,
+        transitions = transitions inputDKA,
+        initState = initState inputDKA,
+        endStates = endStates inputDKA
+    }
+    where zeroEquivalence = ((endStates inputDKA), (states inputDKA) \\ (endStates inputDKA))
 
 main = do 
     arguments <- getArgs
@@ -108,7 +119,7 @@ main = do
     let parsedDKA = parseInput (lines contents)
     case head arguments of
         "-i" -> printDKA parsedDKA    
-        "-t" -> printDKA (createReducedDKA parsedDKA) 
+        "-t" -> printDKA (createReducedDKA (createWellDefinedDKA parsedDKA)) 
         _ -> error "Invalid first argument."
 
 
