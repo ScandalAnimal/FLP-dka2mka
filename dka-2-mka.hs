@@ -96,6 +96,22 @@ createWellDefinedDKA inputDKA = DKA {
           alphabetFromAccessibleStates = foldr (\transition cleanList -> (symbol transition):cleanList) [] transitionsFromAccessibleStates
           transitionsToSinkState = createTransitionsToSinkState alphabetFromAccessibleStates onlyAccessibleStates transitionsFromAccessibleStates
 
+checkStateGroup :: ([State],Symbol) -> [Transition] -> [State]
+checkStateGroup stateGroup transitions = removeDuplicatesFromList( 
+    foldr (\transition list -> if (((inputState transition) `elem` (fst stateGroup)) && ((==) (snd stateGroup) (symbol transition)))
+                                   then (outputState transition):list
+                                   else list
+      ) [] transitions)
+
+
+iterateOverStateGroups :: [([State],Symbol)] -> [Transition] -> [(([State],Symbol),[State])]
+iterateOverStateGroups (x:[]) transitions = (x,(checkStateGroup x transitions)) : []
+iterateOverStateGroups (x:xs) transitions = (x,(checkStateGroup x transitions)) : (iterateOverStateGroups xs transitions)
+
+-- temp return type
+reduceDKA :: [[State]] -> [Symbol] -> [Transition] -> [(([State],Symbol),[State])]
+reduceDKA zeroEquivalenceClass alphabet transitions = iterateOverStateGroups [(stateGroup,symbol) | stateGroup <- zeroEquivalenceClass, symbol <- alphabet] transitions
+
 createReducedDKA :: DKA -> DKA
 createReducedDKA inputDKA = DKA {
         --states = states inputDKA,
@@ -105,7 +121,8 @@ createReducedDKA inputDKA = DKA {
         initState = initState inputDKA,
         endStates = endStates inputDKA
     }
-    where zeroEquivalence = ((endStates inputDKA), (states inputDKA) \\ (endStates inputDKA))
+    where zeroEquivalenceClass = [(endStates inputDKA), ((states inputDKA) \\ (endStates inputDKA))]
+          lastEquivalenceClass = reduceDKA zeroEquivalenceClass (alphabet inputDKA) (transitions inputDKA)
 
 main = do 
     arguments <- getArgs
