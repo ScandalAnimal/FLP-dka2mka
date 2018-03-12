@@ -58,17 +58,17 @@ printTransition transition = "    " ++ (inputState transition) ++ " -> " ++ (sym
 printDKA :: DKA -> IO ()
 printDKA dka = do 
     putStr "States: "
-    putStrLn (intercalate "," (sort (states dka)))
+    putStrLn (intercalate "," (states dka))
     putStr "Alphabet: "
-    putStrLn (intercalate "," (sort (alphabet dka)))
+    putStrLn (intercalate "," (alphabet dka))
     putStrLn "Transitions: "
     mapM_ putStrLn (map printTransition (transitions dka))  
     putStr "Init state: "
     putStrLn (initState dka)
     putStr "End states: "
-    putStrLn (intercalate "," (sort (endStates dka)))
+    putStrLn (intercalate "," (endStates dka))
     putStrLn "Debug part (delete me after)"
-    mapM_ print (sort (toDelete dka))
+    mapM_ print (toDelete dka)
 
 eliminateInaccessibleStates :: [Transition] -> ([State],[State]) -> ([State],[State])
 eliminateInaccessibleStates transitions (x,y) = if (x == y)
@@ -90,11 +90,11 @@ createTransitionsToSinkState alphabet states transitions = foldr (\transition cl
 
 createWellDefinedDKA :: DKA -> DKA
 createWellDefinedDKA inputDKA = DKA {
-        states = if ((length transitionsToSinkState) == 0) then onlyAccessibleStates else sinkState:onlyAccessibleStates,
-        alphabet = intersect (alphabet inputDKA) alphabetFromAccessibleStates,
+        states = sort (if ((length transitionsToSinkState) == 0) then onlyAccessibleStates else sinkState:onlyAccessibleStates),
+        alphabet = sort (intersect (alphabet inputDKA) alphabetFromAccessibleStates),
         transitions = foldr (:) transitionsToSinkState transitionsFromAccessibleStates,
         initState = initState inputDKA,
-        endStates = intersect (endStates inputDKA) onlyAccessibleStates,
+        endStates = sort (intersect (endStates inputDKA) onlyAccessibleStates),
         toDelete = []
     }
     where onlyAccessibleStates = fst (eliminateInaccessibleStates (transitions inputDKA) ((:[]) (initState inputDKA),[]))
@@ -116,7 +116,14 @@ iterateOverStateGroups (x:xs) transitions = (x,(checkStateGroup x transitions)) 
 
 -- temp return type
 reduceDKA :: [[State]] -> [Symbol] -> [Transition] -> [(([State],Symbol),[State])]
-reduceDKA zeroEquivalenceClass alphabet transitions = iterateOverStateGroups [(stateGroup,symbol) | stateGroup <- zeroEquivalenceClass, symbol <- alphabet] transitions
+reduceDKA zeroEquivalenceClass alphabet transitions = 
+    -- foldr (\element list -> 
+    --   ) [] newEquivalenceClass)
+
+    -- where oldEquivalenceClass = zeroEquivalenceClass 
+    --       newEquivalenceClass =
+           iterateOverStateGroups [(stateGroup,symbol) | stateGroup <- zeroEquivalenceClass, symbol <- alphabet] transitions
+
 
 createReducedDKA :: DKA -> DKA
 createReducedDKA inputDKA = DKA {
@@ -129,7 +136,7 @@ createReducedDKA inputDKA = DKA {
         toDelete = lastEquivalenceClass
     }
     where zeroEquivalenceClass = [(endStates inputDKA), ((states inputDKA) \\ (endStates inputDKA))]
-          lastEquivalenceClass = reduceDKA zeroEquivalenceClass (alphabet inputDKA) (transitions inputDKA)
+          lastEquivalenceClass = reduceDKA zeroEquivalenceClass (alphabet inputDKA) ((transitions inputDKA))
 
 main = do 
     arguments <- getArgs
