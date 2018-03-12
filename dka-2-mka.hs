@@ -17,7 +17,8 @@ data DKA = DKA {
                 alphabet :: [Symbol],
                 transitions :: [Transition],
                 initState :: State,
-                endStates :: [State]
+                endStates :: [State],
+                toDelete :: [(([State],Symbol),[State])]
 } deriving (Show)
 
 sinkState = "sink"
@@ -47,7 +48,8 @@ parseInput lines = DKA {
     alphabet = createAlphabet (drop 3 lines),
     transitions = parseTransitions (drop 3 lines),
     initState = (lines!!1),
-    endStates = splitStringByPredicate (==',') (lines!!2)
+    endStates = splitStringByPredicate (==',') (lines!!2),
+    toDelete = []
 }
 
 printTransition :: Transition -> String
@@ -65,6 +67,8 @@ printDKA dka = do
     putStrLn (initState dka)
     putStr "End states: "
     putStrLn (intercalate "," (endStates dka))
+    putStrLn "Debug part (delete me after)"
+    mapM_ print (toDelete dka)
 
 eliminateInaccessibleStates :: [Transition] -> ([State],[State]) -> ([State],[State])
 eliminateInaccessibleStates transitions (x,y) = if (x == y)
@@ -79,9 +83,10 @@ createTransitionsToSinkState alphabet states transitions = foldr (\transition cl
         inputState = fst transition,
         symbol = snd transition,
         outputState = sinkState
-    }:cleanList) [] (removeDuplicatesFromList (allTransitions \\ existingTransitions))
+    }:cleanList) [] (removeDuplicatesFromList (missingTransitions))
     where allTransitions = [ (state,symbol) | state <- states, symbol <- alphabet]
           existingTransitions = foldr (\transition cleanList -> (inputState transition, symbol transition):cleanList) [] transitions
+          missingTransitions = filter (\transition -> not (transition `elem` existingTransitions)) allTransitions
 
 createWellDefinedDKA :: DKA -> DKA
 createWellDefinedDKA inputDKA = DKA {
@@ -89,7 +94,8 @@ createWellDefinedDKA inputDKA = DKA {
         alphabet = intersect (alphabet inputDKA) alphabetFromAccessibleStates,
         transitions = foldr (:) transitionsToSinkState transitionsFromAccessibleStates,
         initState = initState inputDKA,
-        endStates = intersect (endStates inputDKA) onlyAccessibleStates
+        endStates = intersect (endStates inputDKA) onlyAccessibleStates,
+        toDelete = []
     }
     where onlyAccessibleStates = fst (eliminateInaccessibleStates (transitions inputDKA) ((:[]) (initState inputDKA),[]))
           transitionsFromAccessibleStates = filter (\transition -> inputState transition `elem` onlyAccessibleStates) (transitions inputDKA)
@@ -119,7 +125,8 @@ createReducedDKA inputDKA = DKA {
         alphabet = alphabet inputDKA,
         transitions = transitions inputDKA,
         initState = initState inputDKA,
-        endStates = endStates inputDKA
+        endStates = endStates inputDKA,
+        toDelete = lastEquivalenceClass
     }
     where zeroEquivalenceClass = [(endStates inputDKA), ((states inputDKA) \\ (endStates inputDKA))]
           lastEquivalenceClass = reduceDKA zeroEquivalenceClass (alphabet inputDKA) (transitions inputDKA)
