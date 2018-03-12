@@ -58,17 +58,17 @@ printTransition transition = "    " ++ (inputState transition) ++ " -> " ++ (sym
 printDKA :: DKA -> IO ()
 printDKA dka = do 
     putStr "States: "
-    putStrLn (intercalate "," (states dka))
+    putStrLn (intercalate "," (sort (states dka)))
     putStr "Alphabet: "
-    putStrLn (intercalate "," (alphabet dka))
+    putStrLn (intercalate "," (sort (alphabet dka)))
     putStrLn "Transitions: "
     mapM_ putStrLn (map printTransition (transitions dka))  
     putStr "Init state: "
     putStrLn (initState dka)
     putStr "End states: "
-    putStrLn (intercalate "," (endStates dka))
+    putStrLn (intercalate "," (sort (endStates dka)))
     putStrLn "Debug part (delete me after)"
-    mapM_ print (toDelete dka)
+    mapM_ print (sort (toDelete dka))
 
 eliminateInaccessibleStates :: [Transition] -> ([State],[State]) -> ([State],[State])
 eliminateInaccessibleStates transitions (x,y) = if (x == y)
