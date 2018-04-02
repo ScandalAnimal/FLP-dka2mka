@@ -32,7 +32,7 @@ data EqClass = EqClass {
     eqClassStateGroups :: [[State]],
     eqClassAlphabet :: [Symbol],
     eqClassGroupTransitions :: [GroupTransition],
-    deleteMe :: [[[State]]]
+    deleteMe :: [[State]]
 } deriving (Show)
 
 sinkState = "sink"
@@ -143,6 +143,7 @@ checkStateGroup groupTransition transitions =
 
 
 iterateOverStateGroups :: [GroupTransition] -> [Transition] -> [GroupTransition]
+iterateOverStateGroups [] transitions = []
 iterateOverStateGroups (x:[]) transitions = (checkStateGroup x transitions) : []
 iterateOverStateGroups (x:xs) transitions = (checkStateGroup x transitions) : (iterateOverStateGroups xs transitions)
 
@@ -173,45 +174,61 @@ deleteFromListAtIndex index (x:xs)
     | index == 0 = xs
     | otherwise = x : deleteFromListAtIndex (index - 1) xs
 
-splitGroupStates :: GroupTransition -> [[State]] -> [[State]]
-splitGroupStates groupTransition (stateGroup:[]) = (foldr (\tuple list -> if (snd tuple `elem` stateGroup) then (fst tuple):list else list ) [] (tuples)):[]
-    where tuples = [(inputState,outputState) | inputState <- groupTransitionInputStates groupTransition, outputState <- groupTransitionOutputStates groupTransition]
-splitGroupStates groupTransition (stateGroup:xs) = (foldr (\tuple list -> if (snd tuple `elem` stateGroup) then (fst tuple):list else list ) [] (tuples)):splitGroupStates groupTransition xs
-    where tuples = [(inputState,outputState) | inputState <- groupTransitionInputStates groupTransition, outputState <- groupTransitionOutputStates groupTransition]
+splitGroupStates :: [(State,State)] -> [[State]] -> [[State]]
+splitGroupStates zippedStates (stateGroup:[]) = (foldr (\tuple list -> if ((snd tuple) `elem` stateGroup) then (fst tuple):list else list ) [] (zippedStates)):[]
+splitGroupStates zippedStates (stateGroup:xs) = (foldr (\tuple list -> if ((snd tuple) `elem` stateGroup) then (fst tuple):list else list ) [] (zippedStates)):splitGroupStates zippedStates xs
 
-splitGroups :: EqClass -> Maybe Int -> [[State]]
-splitGroups eqClass indexToSplit = case indexToSplit of
+splitGroups :: Symbol -> EqClass -> Maybe Int -> [[State]]
+splitGroups symbol eqClass indexToSplit = case indexToSplit of
                                      Nothing -> eqClassStateGroups eqClass
-                                     Just i -> let groupTransition = (eqClassGroupTransitions eqClass)!!i
+                                     Just i -> let filteredGroupTransitions = foldr (\transition list -> if ((==) symbol (groupTransitionSymbol transition)) then transition:list else list) [] (eqClassGroupTransitions eqClass)
+                                                   groupTransition = (filteredGroupTransitions)!!i
                                                    inputStates = groupTransitionInputStates groupTransition
                                                    beforeStateGroups = foldr (\stateGroup list -> if ((==) stateGroup inputStates) then list else stateGroup:list) [] (eqClassStateGroups eqClass)
-                                                   splittedStateGroup = splitGroupStates groupTransition (eqClassStateGroups eqClass)
+                                                   zippedStates = zip (groupTransitionInputStates groupTransition) (groupTransitionOutputStates groupTransition)
+                                                   splittedStateGroup = splitGroupStates zippedStates (eqClassStateGroups eqClass)
                                                in foldr (:) beforeStateGroups splittedStateGroup
 
-changeMe :: EqClass -> [[[State]]]
-changeMe eqClass = foldr (\symbol list -> (splitGroups eqClass (getGroupToSplit (eqClassGroupTransitions eqClass) (getEqClassIndexes stateGroups (filterGroupTransitionsBySymbol groupTransitions symbol)))):list 
-    ) [] (eqClassAlphabet eqClass)
-    where stateGroups = eqClassStateGroups eqClass
-          groupTransitions = eqClassGroupTransitions eqClass
+generateNewStateGroups :: [Symbol] -> EqClass -> [[State]]
+generateNewStateGroups [] eqClass = []
+generateNewStateGroups (symbol:[]) eqClass = let newStates = splitGroups symbol eqClass (getGroupToSplit (eqClassGroupTransitions eqClass) (getEqClassIndexes (eqClassStateGroups eqClass) (filterGroupTransitionsBySymbol (eqClassGroupTransitions eqClass) symbol)))
+                                                 in if ((==) newStates (eqClassStateGroups eqClass))
+                                                        then (eqClassStateGroups eqClass)
+                                                        else newStates
+generateNewStateGroups (symbol:xs) eqClass = let lastNewStates = generateNewStateGroups (symbol:[]) eqClass
+                                                 in if ((==) lastNewStates (eqClassStateGroups eqClass))
+                                                        then generateNewStateGroups xs eqClass
+                                                        else lastNewStates
+
+changeMe :: EqClass -> EqClass
+changeMe eqClass = EqClass {
+        eqClassStateGroups = eqClassStateGroups eqClass,
+        eqClassAlphabet = eqClassAlphabet eqClass,
+        eqClassGroupTransitions = eqClassGroupTransitions eqClass,
+        deleteMe = filter (not . null) (generateNewStateGroups (eqClassAlphabet eqClass) eqClass)
+
+    }
 
 reduceDKA :: EqClass -> [Transition] -> EqClass
-reduceDKA zeroEquivalenceClass transitions = 
-    EqClass {
-        eqClassStateGroups = eqClassStateGroups zeroEquivalenceClass,
-        eqClassAlphabet = eqClassAlphabet zeroEquivalenceClass,
-        eqClassGroupTransitions = groupTransitions,
-        deleteMe = changeme
-    }
-    where tuples = [(stateGroup,symbol) | stateGroup <- (eqClassStateGroups zeroEquivalenceClass), symbol <- (eqClassAlphabet zeroEquivalenceClass)]
+reduceDKA lastEquivalenceClass transitions = if ((==) (eqClassStateGroups lastEquivalenceClass) (deleteMe newEquivalenceClass)) 
+                                                 then newEquivalenceClass
+                                                 else reduceDKA EqClass {
+                                                     eqClassStateGroups = deleteMe newEquivalenceClass,
+                                                     eqClassAlphabet = eqClassAlphabet newEquivalenceClass,
+                                                     eqClassGroupTransitions = [],
+                                                     deleteMe = []
+                                                 } transitions
+                                                 -- else newEquivalenceClass
+    where tuples = [(stateGroup,symbol) | stateGroup <- (eqClassStateGroups lastEquivalenceClass), symbol <- (eqClassAlphabet lastEquivalenceClass)]
           groupTransitions = iterateOverStateGroups (createGroupTransitionsFromTuples tuples) transitions
           tempEqClass = EqClass {
-                            eqClassStateGroups = eqClassStateGroups zeroEquivalenceClass,
-                            eqClassAlphabet = eqClassAlphabet zeroEquivalenceClass,
+                            eqClassStateGroups = eqClassStateGroups lastEquivalenceClass,
+                            eqClassAlphabet = eqClassAlphabet lastEquivalenceClass,
                             eqClassGroupTransitions = groupTransitions,
                             deleteMe = []
-                        }
-          -- todo, vrati to eqclass, porovnat s povodnou, a ked tak zaiterovat ak su rozne              
-          changeme = changeMe tempEqClass
+                        }              
+          newEquivalenceClass = changeMe tempEqClass
+
 
 createReducedDKA :: DKA -> DKA
 createReducedDKA inputDKA = DKA {
