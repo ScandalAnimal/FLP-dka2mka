@@ -7,21 +7,39 @@ type State = String
 type Symbol = String
 
 data Transition = Transition {
-                inputState :: State,
-                symbol :: Symbol,
-                outputState :: State
+    transitionInputState :: State,
+    transitionSymbol :: Symbol,
+    transitionOutputState :: State
 } deriving (Show)
 
 data DKA = DKA {
-                states :: [State],
-                alphabet :: [Symbol],
-                transitions :: [Transition],
-                initState :: State,
-                endStates :: [State],
-                toDelete :: [(([State],Symbol),[State])]
+    states :: [State],
+    alphabet :: [Symbol],
+    transitions :: [Transition],
+    initState :: State,
+    endStates :: [State],
+    toDelete :: EqClass
+} deriving (Show)
+
+data GroupTransition = GroupTransition {
+    groupTransitionInputStates :: [State],
+    groupTransitionSymbol :: Symbol,
+    groupTransitionOutputStates :: [State]
+} deriving (Show)
+
+data EqClass = EqClass {
+    eqClassStateGroups :: [[State]],
+    eqClassAlphabet :: [Symbol],
+    eqClassGroupTransitions :: [GroupTransition]
 } deriving (Show)
 
 sinkState = "sink"
+
+blankEqClass = EqClass {
+    eqClassStateGroups = [],
+    eqClassAlphabet = [],
+    eqClassGroupTransitions = []
+}
 
 splitStringByPredicate :: (Char -> Bool) -> String -> [String]
 splitStringByPredicate predicate s = case dropWhile predicate s of
@@ -37,9 +55,9 @@ createAlphabet transitions = removeDuplicatesFromList (map (\transition -> (spli
 
 parseTransitions :: [String] -> [Transition]
 parseTransitions transitions = (map (\transition -> (Transition {
-    inputState = (splitStringByPredicate (==',') transition)!!0,
-    symbol = (splitStringByPredicate (==',') transition)!!1,
-    outputState = (splitStringByPredicate (==',') transition)!!2
+    transitionInputState = (splitStringByPredicate (==',') transition)!!0,
+    transitionSymbol = (splitStringByPredicate (==',') transition)!!1,
+    transitionOutputState = (splitStringByPredicate (==',') transition)!!2
 }))  transitions)
 
 parseInput :: [String] -> DKA
@@ -49,11 +67,11 @@ parseInput lines = DKA {
     transitions = parseTransitions (drop 3 lines),
     initState = (lines!!1),
     endStates = splitStringByPredicate (==',') (lines!!2),
-    toDelete = []
+    toDelete = blankEqClass
 }
 
 printTransition :: Transition -> String
-printTransition transition = "    " ++ (inputState transition) ++ " -> " ++ (symbol transition) ++ " -> " ++ (outputState transition)
+printTransition transition = "    " ++ (transitionInputState transition) ++ " -> " ++ (transitionSymbol transition) ++ " -> " ++ (transitionOutputState transition)
 
 printDKA :: DKA -> IO ()
 printDKA dka = do 
@@ -68,24 +86,24 @@ printDKA dka = do
     putStr "End states: "
     putStrLn (intercalate "," (endStates dka))
     putStrLn "Debug part (delete me after)"
-    mapM_ print (toDelete dka)
+    print (toDelete dka)
 
 eliminateInaccessibleStates :: [Transition] -> ([State],[State]) -> ([State],[State])
 eliminateInaccessibleStates transitions (x,y) = if (x == y)
                                                     then (x,y)
-                                                    else let newStates = removeDuplicatesFromList (foldr (\transition list -> if (inputState transition) `elem` list 
-                                                                                                                                  then (outputState transition):list 
+                                                    else let newStates = removeDuplicatesFromList (foldr (\transition list -> if (transitionInputState transition) `elem` list 
+                                                                                                                                  then (transitionOutputState transition):list 
                                                                                                                                   else list) (x) transitions)
                                                         in eliminateInaccessibleStates transitions (newStates,x)
 
 createTransitionsToSinkState :: [Symbol] -> [State] -> [Transition] -> [Transition]
 createTransitionsToSinkState alphabet states transitions = foldr (\transition cleanList -> Transition {
-        inputState = fst transition,
-        symbol = snd transition,
-        outputState = sinkState
+        transitionInputState = fst transition,
+        transitionSymbol = snd transition,
+        transitionOutputState = sinkState
     }:cleanList) [] (removeDuplicatesFromList (missingTransitions))
     where allTransitions = [ (state,symbol) | state <- states, symbol <- alphabet]
-          existingTransitions = foldr (\transition cleanList -> (inputState transition, symbol transition):cleanList) [] transitions
+          existingTransitions = foldr (\transition cleanList -> (transitionInputState transition, transitionSymbol transition):cleanList) [] transitions
           missingTransitions = filter (\transition -> not (transition `elem` existingTransitions)) allTransitions
 
 createWellDefinedDKA :: DKA -> DKA
@@ -95,35 +113,60 @@ createWellDefinedDKA inputDKA = DKA {
         transitions = foldr (:) transitionsToSinkState transitionsFromAccessibleStates,
         initState = initState inputDKA,
         endStates = sort (intersect (endStates inputDKA) onlyAccessibleStates),
-        toDelete = []
+        toDelete = blankEqClass
     }
     where onlyAccessibleStates = fst (eliminateInaccessibleStates (transitions inputDKA) ((:[]) (initState inputDKA),[]))
-          transitionsFromAccessibleStates = filter (\transition -> inputState transition `elem` onlyAccessibleStates) (transitions inputDKA)
-          alphabetFromAccessibleStates = foldr (\transition cleanList -> (symbol transition):cleanList) [] transitionsFromAccessibleStates
+          transitionsFromAccessibleStates = filter (\transition -> transitionInputState transition `elem` onlyAccessibleStates) (transitions inputDKA)
+          alphabetFromAccessibleStates = foldr (\transition cleanList -> (transitionSymbol transition):cleanList) [] transitionsFromAccessibleStates
           transitionsToSinkState = createTransitionsToSinkState alphabetFromAccessibleStates onlyAccessibleStates transitionsFromAccessibleStates
 
-checkStateGroup :: ([State],Symbol) -> [Transition] -> [State]
-checkStateGroup stateGroup transitions = removeDuplicatesFromList( 
-    foldr (\transition list -> if (((inputState transition) `elem` (fst stateGroup)) && ((==) (snd stateGroup) (symbol transition)))
-                                   then (outputState transition):list
-                                   else list
-      ) [] transitions)
+-- checkStateGroup :: ([State],Symbol) -> [Transition] -> [State]
+-- checkStateGroup stateGroup transitions = removeDuplicatesFromList( 
+--     foldr (\transition list -> if (((inputState transition) `elem` (fst stateGroup)) && ((==) (snd stateGroup) (symbol transition)))
+--                                    then (outputState transition):list
+--                                    else list
+--       ) [] transitions)
+
+-- iterateOverStateGroups :: [([State],Symbol)] -> [Transition] -> [(([State],Symbol),[State])]
+-- iterateOverStateGroups (x:[]) transitions = (x,(checkStateGroup x transitions)) : []
+-- iterateOverStateGroups (x:xs) transitions = (x,(checkStateGroup x transitions)) : (iterateOverStateGroups xs transitions)
+
+-- -- temp return type
+-- reduceDKA :: EqClass -> [Transition] -> [(([State],Symbol),[State])]
+-- reduceDKA zeroEquivalenceClass transitions = iterateOverStateGroups [(stateGroup,symbol) | stateGroup <- (stateGroups zeroEquivalenceClass), symbol <- (alphabet zeroEquivalenceClass)] transitions
+
+createGroupTransitionsFromTuples :: [([State],Symbol)] -> [GroupTransition]
+createGroupTransitionsFromTuples tuples = foldr (\tuple list -> GroupTransition {
+                                                                    groupTransitionInputStates = (fst tuple), 
+                                                                    groupTransitionSymbol = (snd tuple), 
+                                                                    groupTransitionOutputStates = []
+                                                                }:list) [] tuples
+
+checkStateGroup_ :: GroupTransition -> [Transition] -> GroupTransition
+checkStateGroup_ groupTransition transitions = 
+    GroupTransition {
+        groupTransitionInputStates = groupTransitionInputStates groupTransition, 
+        groupTransitionSymbol = groupTransitionSymbol groupTransition, 
+        groupTransitionOutputStates = outputStates
+    }
+    where outputStates = removeDuplicatesFromList(foldr (\transition list -> if (((transitionInputState transition) `elem` (groupTransitionInputStates groupTransition)) && ((==) (groupTransitionSymbol groupTransition) (transitionSymbol transition)))
+                                   then (transitionOutputState transition):list
+                                   else list) [] transitions)
 
 
-iterateOverStateGroups :: [([State],Symbol)] -> [Transition] -> [(([State],Symbol),[State])]
-iterateOverStateGroups (x:[]) transitions = (x,(checkStateGroup x transitions)) : []
-iterateOverStateGroups (x:xs) transitions = (x,(checkStateGroup x transitions)) : (iterateOverStateGroups xs transitions)
+iterateOverStateGroups_ :: [GroupTransition] -> [Transition] -> [GroupTransition]
+iterateOverStateGroups_ (x:[]) transitions = (checkStateGroup_ x transitions) : []
+iterateOverStateGroups_ (x:xs) transitions = (checkStateGroup_ x transitions) : (iterateOverStateGroups_ xs transitions)
 
--- temp return type
-reduceDKA :: [[State]] -> [Symbol] -> [Transition] -> [(([State],Symbol),[State])]
-reduceDKA zeroEquivalenceClass alphabet transitions = 
-    -- foldr (\element list -> 
-    --   ) [] newEquivalenceClass)
 
-    -- where oldEquivalenceClass = zeroEquivalenceClass 
-    --       newEquivalenceClass =
-           iterateOverStateGroups [(stateGroup,symbol) | stateGroup <- zeroEquivalenceClass, symbol <- alphabet] transitions
-
+reduceDKA :: EqClass -> [Transition] -> EqClass
+reduceDKA zeroEquivalenceClass transitions = 
+    EqClass {
+        eqClassStateGroups = eqClassStateGroups zeroEquivalenceClass,
+        eqClassAlphabet = eqClassAlphabet zeroEquivalenceClass,
+        eqClassGroupTransitions = iterateOverStateGroups_ (createGroupTransitionsFromTuples tuples) transitions
+    }
+    where tuples = [(stateGroup,symbol) | stateGroup <- (eqClassStateGroups zeroEquivalenceClass), symbol <- (eqClassAlphabet zeroEquivalenceClass)]
 
 createReducedDKA :: DKA -> DKA
 createReducedDKA inputDKA = DKA {
@@ -135,8 +178,12 @@ createReducedDKA inputDKA = DKA {
         endStates = endStates inputDKA,
         toDelete = lastEquivalenceClass
     }
-    where zeroEquivalenceClass = [(endStates inputDKA), ((states inputDKA) \\ (endStates inputDKA))]
-          lastEquivalenceClass = reduceDKA zeroEquivalenceClass (alphabet inputDKA) ((transitions inputDKA))
+    where zeroEquivalenceClass = EqClass {
+              eqClassStateGroups = [(endStates inputDKA), ((states inputDKA) \\ (endStates inputDKA))],
+              eqClassAlphabet = alphabet inputDKA,
+              eqClassGroupTransitions = []
+          }
+          lastEquivalenceClass = reduceDKA zeroEquivalenceClass ((transitions inputDKA))
 
 main = do 
     arguments <- getArgs
