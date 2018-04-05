@@ -19,7 +19,7 @@ data DKA = DKA {
     transitions :: [Transition],
     initState :: State,
     endStates :: [State],
-    toDelete :: EqClass
+    eqClass :: EqClass
 } deriving (Show)
 
 data GroupTransition = GroupTransition {
@@ -32,7 +32,7 @@ data EqClass = EqClass {
     eqClassStateGroups :: [[State]],
     eqClassAlphabet :: [Symbol],
     eqClassGroupTransitions :: [GroupTransition],
-    deleteMe :: [[State]]
+    eqClassTempStateGroups :: [[State]]
 } deriving (Show)
 
 sinkState = "sink"
@@ -41,7 +41,7 @@ blankEqClass = EqClass {
     eqClassStateGroups = [],
     eqClassAlphabet = [],
     eqClassGroupTransitions = [],
-    deleteMe = []
+    eqClassTempStateGroups = []
 }
 
 splitStringByPredicate :: (Char -> Bool) -> String -> [String]
@@ -70,11 +70,14 @@ parseInput lines = DKA {
     transitions = parseTransitions (drop 3 lines),
     initState = (lines!!1),
     endStates = splitStringByPredicate (==',') (lines!!2),
-    toDelete = blankEqClass
+    eqClass = blankEqClass
 }
 
 printTransition :: Transition -> String
 printTransition transition = "    " ++ (transitionInputState transition) ++ " -> " ++ (transitionSymbol transition) ++ " -> " ++ (transitionOutputState transition)
+
+printMinimizedTransition :: Transition -> String
+printMinimizedTransition transition = (transitionInputState transition) ++ "," ++ (transitionSymbol transition) ++ "," ++ (transitionOutputState transition)
 
 printDKA :: DKA -> IO ()
 printDKA dka = do 
@@ -88,8 +91,17 @@ printDKA dka = do
     putStrLn (initState dka)
     putStr "End states: "
     putStrLn (intercalate "," (endStates dka))
-    putStrLn "Debug part (delete me after)"
-    print (toDelete dka)
+    -- putStrLn "Debug part (delete me after)"
+    -- print (eqClass dka)
+
+printMinimizedDKA :: DKA -> IO ()
+printMinimizedDKA dka = do 
+    putStrLn (intercalate "," (states dka))
+    putStrLn (initState dka)
+    putStrLn (intercalate "," (endStates dka))
+    mapM_ putStrLn (map printMinimizedTransition (transitions dka))  
+    -- putStrLn "Debug part (delete me after)"
+    -- print (eqClass dka)
 
 eliminateInaccessibleStates :: [Transition] -> ([State],[State]) -> ([State],[State])
 eliminateInaccessibleStates transitions (x,y) = if (x == y)
@@ -116,7 +128,7 @@ createWellDefinedDKA inputDKA = DKA {
         transitions = foldr (:) transitionsToSinkState transitionsFromAccessibleStates,
         initState = initState inputDKA,
         endStates = sort (intersect (endStates inputDKA) onlyAccessibleStates),
-        toDelete = blankEqClass
+        eqClass = blankEqClass
     }
     where onlyAccessibleStates = fst (eliminateInaccessibleStates (transitions inputDKA) ((:[]) (initState inputDKA),[]))
           transitionsFromAccessibleStates = filter (\transition -> transitionInputState transition `elem` onlyAccessibleStates) (transitions inputDKA)
@@ -137,7 +149,7 @@ checkStateGroup groupTransition transitions =
         groupTransitionSymbol = groupTransitionSymbol groupTransition, 
         groupTransitionOutputStates = outputStates
     }
-    where outputStates = removeDuplicatesFromList(foldr (\transition list -> if (((transitionInputState transition) `elem` (groupTransitionInputStates groupTransition)) && ((==) (groupTransitionSymbol groupTransition) (transitionSymbol transition)))
+    where outputStates = (foldr (\transition list -> if (((transitionInputState transition) `elem` (groupTransitionInputStates groupTransition)) && ((==) (groupTransitionSymbol groupTransition) (transitionSymbol transition)))
                                    then (transitionOutputState transition):list
                                    else list) [] transitions)
 
@@ -205,18 +217,18 @@ changeMe eqClass = EqClass {
         eqClassStateGroups = eqClassStateGroups eqClass,
         eqClassAlphabet = eqClassAlphabet eqClass,
         eqClassGroupTransitions = eqClassGroupTransitions eqClass,
-        deleteMe = filter (not . null) (generateNewStateGroups (eqClassAlphabet eqClass) eqClass)
+        eqClassTempStateGroups = filter (not . null) (generateNewStateGroups (eqClassAlphabet eqClass) eqClass)
 
     }
 
 reduceDKA :: EqClass -> [Transition] -> EqClass
-reduceDKA lastEquivalenceClass transitions = if ((==) (eqClassStateGroups lastEquivalenceClass) (deleteMe newEquivalenceClass)) 
+reduceDKA lastEquivalenceClass transitions = if ((==) (eqClassStateGroups lastEquivalenceClass) (eqClassTempStateGroups newEquivalenceClass)) 
                                                  then newEquivalenceClass
                                                  else reduceDKA EqClass {
-                                                     eqClassStateGroups = deleteMe newEquivalenceClass,
+                                                     eqClassStateGroups = eqClassTempStateGroups newEquivalenceClass,
                                                      eqClassAlphabet = eqClassAlphabet newEquivalenceClass,
                                                      eqClassGroupTransitions = [],
-                                                     deleteMe = []
+                                                     eqClassTempStateGroups = []
                                                  } transitions
                                                  -- else newEquivalenceClass
     where tuples = [(stateGroup,symbol) | stateGroup <- (eqClassStateGroups lastEquivalenceClass), symbol <- (eqClassAlphabet lastEquivalenceClass)]
@@ -225,25 +237,50 @@ reduceDKA lastEquivalenceClass transitions = if ((==) (eqClassStateGroups lastEq
                             eqClassStateGroups = eqClassStateGroups lastEquivalenceClass,
                             eqClassAlphabet = eqClassAlphabet lastEquivalenceClass,
                             eqClassGroupTransitions = groupTransitions,
-                            deleteMe = []
+                            eqClassTempStateGroups = []
                         }              
           newEquivalenceClass = changeMe tempEqClass
 
+isStateGroupInEndStates :: (Int,[State]) -> [State] -> [Int]
+isStateGroupInEndStates stateGroup endStates = removeDuplicatesFromList( foldr (\endState list -> if (endState `elem` (snd stateGroup)) then (fst stateGroup):list else list) [] endStates)
+
+isSubset :: (Int,[State]) -> [State] -> [Int] 
+isSubset stateGroup states = removeDuplicatesFromList (foldr (\state list -> if (state `elem` (snd stateGroup)) then (fst stateGroup):list else list) [] states)
+
+getNewTransition :: [(Int,[State])] -> GroupTransition -> Transition
+getNewTransition stateGroups groupTransition = Transition {
+        transitionInputState = show (head (head (filter (not . null) inputState))),
+        transitionSymbol = groupTransitionSymbol groupTransition,
+        transitionOutputState = show (head (head (filter (not . null) outputState)))
+    }
+    where inputState = foldr (\stateGroup list -> (isSubset stateGroup (sort (removeDuplicatesFromList (groupTransitionInputStates groupTransition)))):list) [] stateGroups
+          outputState = foldr (\stateGroup list -> (isSubset stateGroup (sort (removeDuplicatesFromList (groupTransitionOutputStates groupTransition)))):list) [] stateGroups
+
+getNewTransitions :: [(Int,[State])] -> [GroupTransition] -> [Transition]
+getNewTransitions stateGroups groupTransitions = foldr (\groupTransition list -> (getNewTransition stateGroups groupTransition):list) [] groupTransitions 
+
+convertEquivalenceClassToDKA :: DKA -> EqClass -> DKA
+convertEquivalenceClassToDKA inputDKA eqClass = DKA {
+        states = newStates,
+        alphabet = alphabet inputDKA,
+        transitions = newTransitions,
+        initState = head newInitState,
+        endStates = foldr (\state list -> (show (head state)):list) [] newEndStates,
+        eqClass = eqClass
+    }
+    where newStates = foldr (\stateGroup list -> (show (fromJust (elemIndex stateGroup (eqClassStateGroups eqClass)))):list) [] (eqClassStateGroups eqClass)
+          renamedStates = foldr (\stateGroup list -> (fromJust (elemIndex stateGroup (eqClassStateGroups eqClass)), stateGroup):list) [] (eqClassStateGroups eqClass)
+          newInitState = foldr (\state list -> if ((initState inputDKA) `elem` (snd state)) then (show (fst state)):list else list) [] renamedStates
+          newEndStates = filter (not . null) (foldr (\state list -> (isStateGroupInEndStates state (endStates inputDKA)):list) [] renamedStates)
+          newTransitions = getNewTransitions renamedStates (eqClassGroupTransitions eqClass)
 
 createReducedDKA :: DKA -> DKA
-createReducedDKA inputDKA = DKA {
-        states = states inputDKA,
-        alphabet = alphabet inputDKA,
-        transitions = transitions inputDKA,
-        initState = initState inputDKA,
-        endStates = endStates inputDKA,
-        toDelete = lastEquivalenceClass
-    }
+createReducedDKA inputDKA = convertEquivalenceClassToDKA inputDKA lastEquivalenceClass
     where zeroEquivalenceClass = EqClass {
               eqClassStateGroups = [(endStates inputDKA), ((states inputDKA) \\ (endStates inputDKA))],
               eqClassAlphabet = alphabet inputDKA,
               eqClassGroupTransitions = [],
-              deleteMe = []
+              eqClassTempStateGroups = []
           }
           lastEquivalenceClass = reduceDKA zeroEquivalenceClass ((transitions inputDKA))
 
@@ -259,7 +296,7 @@ main = do
     let parsedDKA = parseInput (lines contents)
     case head arguments of
         "-i" -> printDKA parsedDKA    
-        "-t" -> printDKA (createReducedDKA (createWellDefinedDKA parsedDKA)) 
+        "-t" -> printMinimizedDKA (createReducedDKA (createWellDefinedDKA parsedDKA)) 
         _ -> error "Invalid first argument."
 
 
