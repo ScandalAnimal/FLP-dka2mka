@@ -1,3 +1,6 @@
+-- FLP - FUN - DKA-2-MKA
+-- xvasil02
+-- Maroš Vasilišin
 import System.Environment
 import System.IO
 import Data.List

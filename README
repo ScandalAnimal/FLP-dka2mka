@@ -1,0 +1,54 @@
+Program konvertuje deterministický konečný automat DKA na minimálny deterministický konečný automat MKA.
+
+Je možné ho spustiť ako:
+	dka-2-mka [voľby] [vstup]
+
+	kde voľby možu byť:
+
+	-i - dojde k výpisu automatu do terminálu, automat bude prevedený do vnútornej reprezentácie programu, štruktúra pripomína definíciu DKA z predmetu TIN.
+	-t - dojde k minimalizácii DKA a výpisu do terminálu vo formáte, ktorý bol aj na vstup
+
+	a vstup može byť buď prázdny, vtedy sa bude načítavať zo stdin, alebo sa može jednať o názov súboru.
+
+Pri vstupe zo stdin sa očakáva rovnaký formát vstupu ako pri načítaní zo súboru, a to takýto:
+
+	<zoznam všetkých stavov oddelených čiarkou>\n
+	<počiatočný stav>\n
+	<zoznam koncových stavov>\n
+	<pravidlo 1>\n
+	...
+	<pravidlo N>\n
+
+napríklad:
+
+	1,2,3,4,5
+	1
+	1,2,3,4
+	1,a,2
+	1,b,3
+	2,a,4
+	2,b,5
+	3,a,2
+	3,b,3
+	4,a,2
+	4,b,3
+	5,a,5
+	5,b,5
+
+Vo výslednom minimálnom automate sa nové stavy číslujú vždy od 1. Povodný počiatočný stav sa bude nachádzať v novom stave 1, ostatné stavy sú pomenované v poradí od najmenšieho po najväčšie číslo (zo stavov, ktoré sa do daného nového stavu minimalizovali).
+
+
+Príklad vyššie bude teda minimalizovaný na:
+
+	1,2,3
+	1
+	1,2
+	1,a,2
+	1,b,1
+	2,a,1
+	2,b,3
+	3,a,3
+	3,b,3
+
+
+Autor: Maroš Vasilišin, xvasil02, FIT VUT Brno, 2018	
