@@ -155,10 +155,13 @@ createTransitionsToSinkState alphabet states transitions = foldr (\transition cl
         transitionInputState = fst transition,
         transitionSymbol = snd transition,
         transitionOutputState = sinkState
-    }:cleanList) [] (removeDuplicatesFromList (missingTransitions))
+    }:cleanList) [] (removeDuplicatesFromList (missingTransitionsWithSinkState))
     where allTransitions = [(state,symbol) | state <- states, symbol <- alphabet]
           existingTransitions = foldr (\transition cleanList -> (transitionInputState transition, transitionSymbol transition):cleanList) [] transitions
           missingTransitions = filter (\transition -> not (transition `elem` existingTransitions)) allTransitions
+          missingTransitionsWithSinkState = if ((length missingTransitions) /= 0)
+                  then (foldr(\symbol list -> (sinkState, symbol):list) missingTransitions alphabet)
+                  else missingTransitions
 
 -- doplni do automatu sink stav, a jeho prechody, ak je to potrebne a odstrani nedostupne stavy
 createWellDefinedDKA :: DKA -> DKA
