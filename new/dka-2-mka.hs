@@ -5,6 +5,39 @@
 import System.Environment
 import System.IO
 import Debug.Trace
+import Data.List
+import Data.List.Split
+import Data.Char
+
+-- vlastna reprezentacia prechodov
+data Transition = Transition {
+  from::String,
+  char::String,
+  to::String
+} deriving (Show)
+
+-- vlastna reprezentacia DKA
+data DKA = DKA {
+  states::[String],
+  start::[String],
+  end::[String],
+  alphabet::[String],
+  transitions::[Transition]
+} deriving (Show)
+
+-- prepinac -i
+printRichDKA :: DKA -> IO ()
+printRichDKA dka = do
+  putStrLn "States:"
+  putStrLn (intercalate "," (states dka))
+  putStrLn "Start state:"
+  putStrLn (intercalate "," (start dka))
+  putStrLn "End states:"
+  putStrLn (intercalate "," (end dka))
+  putStrLn "Alphabet:"
+  putStrLn (intercalate "," (alphabet dka))
+  -- putStrLn "Transitions:"
+  -- mapM_ printTrans (transitions dka)
 
 -- podla poctu argumentov vrati stdin alebo otvoreny subor
 getHandle :: [FilePath] -> IO Handle
@@ -26,6 +59,24 @@ getContentsFromInput handle args = if (length args == 1)
                             then readFromStdin handle ""
                             else hGetContents handle
 
+--https://stackoverflow.com/questions/4978578/how-to-split-a-string-in-haskell
+customSplit :: Eq a => a -> [a] -> [[a]]
+customSplit d [] = []
+customSplit d s = x : customSplit d (drop 1 y) where (x,y) = span (/= d) s
+
+parseAlphabet :: [String] -> [String]
+parseAlphabet [x] = [((customSplit ',' x)!!1)] 
+parseAlphabet (x:xs) = [((customSplit ',' x)!!1)] ++ parseAlphabet xs 
+
+formatInput :: [String] -> DKA
+formatInput lines = DKA {
+  states = (customSplit ',' (lines!!0)),
+  start = (customSplit ',' (lines!!1)),
+  end = (customSplit ',' (lines!!2)),
+  alphabet = (sort (nub (parseAlphabet (drop 3 lines)))),
+  transitions = []
+}
+
 -- vstupny bod programu
 main = do
     args <- getArgs
@@ -36,8 +87,8 @@ main = do
         handle <- getHandle args
         contents <- getContentsFromInput handle args
 
+        let formattedInput = formatInput (lines contents)
+        printRichDKA formattedInput
         hClose handle
-
-
 
     return ()
