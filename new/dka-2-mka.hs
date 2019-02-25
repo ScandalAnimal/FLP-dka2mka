@@ -36,8 +36,16 @@ printRichDKA dka = do
   putStrLn (intercalate "," (end dka))
   putStrLn "Alphabet:"
   putStrLn (intercalate "," (alphabet dka))
-  -- putStrLn "Transitions:"
-  -- mapM_ printTrans (transitions dka)
+  putStrLn "Transitions:"
+  mapM_ printTrans (transitions dka)
+
+printTrans :: Transition -> IO ()
+printTrans trans = do
+  putStr (from trans)
+  putStr ","
+  putStr (char trans)
+  putStr ","
+  putStrLn (to trans) 
 
 -- podla poctu argumentov vrati stdin alebo otvoreny subor
 getHandle :: [FilePath] -> IO Handle
@@ -68,13 +76,25 @@ parseAlphabet :: [String] -> [String]
 parseAlphabet [x] = [((customSplit ',' x)!!1)] 
 parseAlphabet (x:xs) = [((customSplit ',' x)!!1)] ++ parseAlphabet xs 
 
+parseTransition :: [String] -> Transition
+parseTransition x = Transition {
+  from = x!!0,
+  char = x!!1,
+  to = x!!2
+}
+
+makeTransitions :: [String] -> [Transition]
+makeTransitions [] = []
+makeTransitions [x] = [parseTransition (customSplit ',' x)]
+makeTransitions (x:xs) = [(parseTransition (customSplit ',' x))] ++ makeTransitions xs
+
 formatInput :: [String] -> DKA
 formatInput lines = DKA {
   states = (customSplit ',' (lines!!0)),
   start = (customSplit ',' (lines!!1)),
   end = (customSplit ',' (lines!!2)),
   alphabet = (sort (nub (parseAlphabet (drop 3 lines)))),
-  transitions = []
+  transitions = makeTransitions (drop 3 lines)
 }
 
 -- vstupny bod programu

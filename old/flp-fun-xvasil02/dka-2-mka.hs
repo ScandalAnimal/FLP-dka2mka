@@ -361,35 +361,35 @@ createReducedDKA inputDKA = convertEquivalenceClassToDKA inputDKA lastEquivalenc
 append :: [String] -> [String] -> [String]
 append xs ys = foldr (\x y -> x:y) ys xs
 
--- funkcia pre citanie standardneho vstupu
-readFromStdin :: [String] -> IO [String]
-readFromStdin lines = do
-    line <- getLine  
-    if null line  
-        then return (append lines (line:[]))
-        else do  
-            readFromStdin (append lines (line:[]))
+-- -- funkcia pre citanie standardneho vstupu
+-- readFromStdin :: [String] -> IO [String]
+-- readFromStdin lines = do
+--     line <- getLine  
+--     if null line  
+--         then return (append lines (line:[]))
+--         else do  
+--             readFromStdin (append lines (line:[]))
 
--- nacitanie stdin
-handleStdin :: IO [String]
-handleStdin = readFromStdin []
+-- -- nacitanie stdin
+-- handleStdin :: IO [String]
+-- handleStdin = readFromStdin []
 
--- funkcia pre citanie obsahu suboru
-handleFile :: String -> IO [String]
-handleFile fileName = do
-    handle <- openFile fileName ReadMode
-    contents <- hGetContents handle
-    let input = lines contents
-    return input
+-- -- funkcia pre citanie obsahu suboru
+-- handleFile :: String -> IO [String]
+-- handleFile fileName = do
+--     handle <- openFile fileName ReadMode
+--     contents <- hGetContents handle
+--     let input = lines contents
+--     return input
 
 
-main = do 
-    arguments <- getArgs
-    let argLength = length arguments
-    content <- case argLength of
-                   1 -> handleStdin
-                   2 -> handleFile (arguments!!1)
-                   _ -> error "Invalid number of arguments."
+-- main = do 
+    -- arguments <- getArgs
+    -- let argLength = length arguments
+    -- content <- case argLength of
+                   -- 1 -> handleStdin
+                   -- 2 -> handleFile (arguments!!1)
+                   -- _ -> error "Invalid number of arguments."
     let clearContent = filter (not . null) content
 
     let parsedDKA = parseInput clearContent
