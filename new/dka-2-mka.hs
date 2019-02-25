@@ -105,6 +105,16 @@ formatInput lines = DKA {
   transitions = makeTransitions (drop 3 lines)
 }
 
+-- fake vypis TODO zmenit podla alg z TINu
+minimize :: DKA -> DKA
+minimize dka = DKA {
+  states = states dka,
+  start = start dka,
+  end = end dka,
+  transitions = transitions dka,
+  alphabet = alphabet dka
+}
+
 -- vstupny bod programu
 main = do
     args <- getArgs
@@ -119,7 +129,7 @@ main = do
         
         case (args!!0) of 
           "-i" -> printRichDKA formattedInput
-          "-t" -> printDKA formattedInput
+          "-t" -> printDKA (minimize formattedInput)
           _ -> error "Chybny prepinac"
         hClose handle
 
