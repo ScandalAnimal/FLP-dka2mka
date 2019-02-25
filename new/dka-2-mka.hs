@@ -39,6 +39,14 @@ printRichDKA dka = do
   putStrLn "Transitions:"
   mapM_ printTrans (transitions dka)
 
+-- prepinac -t
+printDKA :: DKA -> IO ()
+printDKA dka = do
+  putStrLn (intercalate "," (states dka))
+  putStrLn (intercalate "," (start dka))
+  putStrLn (intercalate "," (end dka))
+  mapM_ printTrans (transitions dka)  
+
 printTrans :: Transition -> IO ()
 printTrans trans = do
   putStr (from trans)
@@ -108,7 +116,11 @@ main = do
         contents <- getContentsFromInput handle args
 
         let formattedInput = formatInput (lines contents)
-        printRichDKA formattedInput
+        
+        case (args!!0) of 
+          "-i" -> printRichDKA formattedInput
+          "-t" -> printDKA formattedInput
+          _ -> error "Chybny prepinac"
         hClose handle
 
     return ()
