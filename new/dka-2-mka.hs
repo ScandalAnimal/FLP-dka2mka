@@ -4,132 +4,176 @@
 
 import System.Environment
 import System.IO
-import Debug.Trace
 import Data.List
 import Data.List.Split
 import Data.Char
 
+-- ****************** CORRECT *****************************
+
+-- ****************** DATOVE TYPY *****************************
+
 -- vlastna reprezentacia prechodov
 data Transition = Transition {
-  from::String,
-  char::String,
-  to::String
+  from :: String,
+  symbol :: String,
+  to :: String
 } deriving (Show)
 
 -- vlastna reprezentacia DKA
 data DKA = DKA {
-  states::[String],
-  start::[String],
-  end::[String],
-  alphabet::[String],
-  transitions::[Transition]
+  states :: [String],
+  alphabet :: [String],
+  transitions :: [Transition],
+  start :: [String],
+  end :: [String]
 } deriving (Show)
 
--- prepinac -i
-printRichDKA :: DKA -> IO ()
-printRichDKA dka = do
-  putStrLn "States:"
-  putStrLn (intercalate "," (states dka))
-  putStrLn "Start state:"
-  putStrLn (intercalate "," (start dka))
-  putStrLn "End states:"
-  putStrLn (intercalate "," (end dka))
-  putStrLn "Alphabet:"
-  putStrLn (intercalate "," (alphabet dka))
-  putStrLn "Transitions:"
-  mapM_ printTrans (transitions dka)
+-- ****************** NACITANIE VSTUPU *****************************
 
+-- podla poctu argumentov vrati stdin alebo otvoreny subor
+getHandle :: [String] -> IO Handle
+getHandle args = 
+  if (length args == 1)
+    then return stdin
+    else openFile (args!!1) ReadMode
+
+-- nacitanie vstupu zo stdin (http://learnyouahaskell.com/input-and-output)
+readFromStdin :: Handle -> String -> IO String
+readFromStdin handle input = 
+  do
+    line <- hGetLine handle
+    if null line
+      then return (input ++ line)
+      else readFromStdin handle (input ++ line ++ "\n")
+
+-- podla poctu argumentov nacitanie zo stdin alebo zo suboru
+getContentsFromInput :: Handle -> [a] -> IO String
+getContentsFromInput handle args = 
+  if (length args == 1)
+    then readFromStdin handle ""
+    else hGetContents handle
+
+-- ****************** FORMATOVANIE VSTUPU *****************************
+
+-- funkcia na rozdelenie stringu na znaku
+-- https://stackoverflow.com/questions/4978578/how-to-split-a-string-in-haskell
+customSplit :: Eq a => a -> [a] -> [[a]]
+customSplit d [] = []
+customSplit d s = x : customSplit d (drop 1 y) where (x,y) = span (/= d) s
+
+parseAlphabet :: [String] -> [String]
+parseAlphabet [x] = [(customSplit ',' x)!!1] 
+parseAlphabet (x:xs) = [(customSplit ',' x)!!1] ++ parseAlphabet xs 
+
+parseTransition :: [String] -> Transition
+parseTransition x = Transition {
+  from = x!!0,
+  symbol = x!!1,
+  to = x!!2
+}
+
+parseTransitions :: [String] -> [Transition]
+parseTransitions [] = []
+parseTransitions [x] = [parseTransition (customSplit ',' x)]
+parseTransitions (x:xs) = [parseTransition (customSplit ',' x)] ++ parseTransitions xs
+
+formatInput :: [String] -> DKA
+formatInput input = DKA {
+  states = (customSplit ',' (input!!0)),
+  alphabet = (sort (nub (parseAlphabet (drop 3 input)))),
+  transitions = parseTransitions (drop 3 input),
+  start = (customSplit ',' (input!!1)),
+  end = (customSplit ',' (input!!2))
+}
+
+-- ****************** VYPIS *****************************
+
+printTransition :: Transition -> IO ()
+printTransition transition = do
+  putStr (from transition)
+  putStr ","
+  putStr (symbol transition)
+  putStr ","
+  putStrLn (to transition) 
+
+-- prepinac -i
+printCustomDKA :: DKA -> IO ()
+printCustomDKA dka = do
+  putStrLn "Stavy: "
+  putStrLn (intercalate "," (states dka))
+  putStrLn "Abeceda: "
+  putStrLn (intercalate "," (alphabet dka))
+  putStrLn "Prechody: "
+  mapM_ printTransition (transitions dka)
+  putStrLn "Startovaci stav: "
+  putStrLn (intercalate "," (start dka))
+  putStrLn "Koncove stavy: "
+  putStrLn (intercalate "," (end dka))
+  
 -- prepinac -t
 printDKA :: DKA -> IO ()
 printDKA dka = do
   putStrLn (intercalate "," (states dka))
   putStrLn (intercalate "," (start dka))
   putStrLn (intercalate "," (end dka))
-  mapM_ printTrans (transitions dka)  
+  mapM_ printTransition (transitions dka)  
 
-printTrans :: Transition -> IO ()
-printTrans trans = do
-  putStr (from trans)
-  putStr ","
-  putStr (char trans)
-  putStr ","
-  putStrLn (to trans) 
+-- ****************** ELIMINACIA NEDOSIAHNUTELNYCH STAVOV ***********
 
--- podla poctu argumentov vrati stdin alebo otvoreny subor
-getHandle :: [FilePath] -> IO Handle
-getHandle args = if (length args == 1)
-                  then return stdin
-                  else openFile (args!!1) ReadMode
+getReachableStatesFromOneState :: [String] -> [Transition] -> [String]
+getReachableStatesFromOneState [x] transitions = 
+  foldr (\transition reachableStates -> 
+    if (from transition) `elem` reachableStates
+      then [to transition] ++ reachableStates
+      else reachableStates) [x] transitions
 
--- nacitanie vstupu zo stdin (http://learnyouahaskell.com/input-and-output)
-readFromStdin :: Handle -> String -> IO String
-readFromStdin handle lines = do
-  line <- hGetLine handle
-  if null line
-    then return (lines ++ line)
-    else readFromStdin handle (lines ++ line ++ "\n")
+compareReachableStateGroups :: [String] -> [String] -> [Transition] -> [String]
+compareReachableStateGroups si sii transitions =
+  if (si == sii)
+    then sii
+    else compareReachableStateGroups sii (sort (nub (getReachableStatesFromSi sii transitions))) transitions
 
--- podla poctu argumentov nacitanie zo stdin alebo zo suboru
-getContentsFromInput :: Handle -> [a] -> IO String
-getContentsFromInput handle args = if (length args == 1)
-                            then readFromStdin handle ""
-                            else hGetContents handle
+getReachableStatesFromSi :: [String] -> [Transition] -> [String]
+getReachableStatesFromSi [] _ = []
+getReachableStatesFromSi [x] transitions = getReachableStatesFromOneState [x] transitions
+getReachableStatesFromSi (x:xs) transitions = (getReachableStatesFromOneState [x] transitions) ++ getReachableStatesFromSi xs transitions
 
---https://stackoverflow.com/questions/4978578/how-to-split-a-string-in-haskell
-customSplit :: Eq a => a -> [a] -> [[a]]
-customSplit d [] = []
-customSplit d s = x : customSplit d (drop 1 y) where (x,y) = span (/= d) s
+createReachableStates :: [String] -> [Transition] -> [String]
+createReachableStates start transitions = 
+  let si = start
+      sii = sort (nub (getReachableStatesFromSi si transitions))
+  in compareReachableStateGroups si sii transitions
 
-parseAlphabet :: [String] -> [String]
-parseAlphabet [x] = [((customSplit ',' x)!!1)] 
-parseAlphabet (x:xs) = [((customSplit ',' x)!!1)] ++ parseAlphabet xs 
-
-parseTransition :: [String] -> Transition
-parseTransition x = Transition {
-  from = x!!0,
-  char = x!!1,
-  to = x!!2
-}
-
-makeTransitions :: [String] -> [Transition]
-makeTransitions [] = []
-makeTransitions [x] = [parseTransition (customSplit ',' x)]
-makeTransitions (x:xs) = [(parseTransition (customSplit ',' x))] ++ makeTransitions xs
-
-formatInput :: [String] -> DKA
-formatInput lines = DKA {
-  states = (customSplit ',' (lines!!0)),
-  start = (customSplit ',' (lines!!1)),
-  end = (customSplit ',' (lines!!2)),
-  alphabet = (sort (nub (parseAlphabet (drop 3 lines)))),
-  transitions = makeTransitions (drop 3 lines)
-}
+-- ****************** WIP *****************************
 
 -- fake vypis TODO zmenit podla alg z TINu
-minimize :: DKA -> DKA
-minimize dka = DKA {
-  states = states dka,
-  start = start dka,
-  end = end dka,
-  transitions = transitions dka,
-  alphabet = alphabet dka
-}
+minimizeDKA :: DKA -> DKA
+minimizeDKA dka = DKA {
+    states = reachableStates,
+    start = start dka,
+    end = end dka,
+    transitions = transitions dka,
+    alphabet = alphabet dka
+  }
+  where reachableStates = createReachableStates (start dka) (transitions dka)
 
--- vstupny bod programu
+-- ******************************** MAIN *****************************
 main = do
     args <- getArgs
     let argCount = length args
     if (argCount == 0 || argCount > 2)
-      then error "Chybny pocet argumentov" -- osetrenie argumentov programu
+      then error "Chybny pocet argumentov"
       else do
         handle <- getHandle args
         contents <- getContentsFromInput handle args
 
         let formattedInput = formatInput (lines contents)
-        
-        case (args!!0) of 
-          "-i" -> printRichDKA formattedInput
-          "-t" -> printDKA (minimize formattedInput)
+
+        let switcher = args!!0
+        case switcher of 
+          "-i" -> printCustomDKA formattedInput
+        --TODO potom zmenit        
+          "-t" -> printCustomDKA (minimizeDKA formattedInput)
           _ -> error "Chybny prepinac"
         hClose handle
 
