@@ -147,6 +147,9 @@ createReachableStates start transitions =
       sii = sort (nub (getReachableStatesFromSi si transitions))
   in compareReachableStateGroups si sii transitions
 
+createReachableEndStates :: [String] -> [String] -> [String]
+createReachableEndStates reachables ends = sort (intersect reachables ends)
+
 -- ****************** ELIMINACIA NEDOSIAHNUTELNYCH PRECHODOV **********
 
 createReachableTransitions :: [Transition] -> [String] -> [Transition]
@@ -182,19 +185,31 @@ addSinkTransitions :: [String] -> [Transition] -> [String] -> [Transition]
 addSinkTransitions [] transitions alphabet = []
 addSinkTransitions (x:xs) transitions alphabet = getSinkTransitionsForState x transitions alphabet ++ addSinkTransitions xs transitions alphabet
 
+addSinkState :: Int -> [String]
+addSinkState sinkTransitions = 
+  if sinkTransitions > 0
+    then ["sink"]
+    else []
+
+addSinkToSinkTransitions :: [String] -> [Transition]
+addSinkToSinkTransitions [] = []
+addSinkToSinkTransitions (x:xs) = [createSinkTransition sink x] ++ (addSinkToSinkTransitions xs)
+
+
 -- ****************** WIP *****************************
 
 -- fake vypis TODO zmenit podla alg z TINu
-minimizeDKA :: DKA -> DKA
-minimizeDKA dka = 
+makeFullyDefinedDKA :: DKA -> DKA
+makeFullyDefinedDKA dka = 
   let reachableStates = createReachableStates (start dka) (transitions dka)
       reachableTransitions = createReachableTransitions (transitions dka) reachableStates
-      reachableTransitionsWithSink = reachableTransitions ++ addSinkTransitions reachableStates reachableTransitions (alphabet dka)
+      sinkTransitions = addSinkTransitions reachableStates reachableTransitions (alphabet dka)
+      sinkToSinkTransitions = addSinkToSinkTransitions (alphabet dka)
   in DKA {
-      states = reachableStates,
+      states = reachableStates ++ (addSinkState (length sinkTransitions)),
       start = start dka,
-      end = end dka,
-      transitions = reachableTransitionsWithSink,
+      end = createReachableEndStates reachableStates (end dka),
+      transitions = reachableTransitions ++ sinkTransitions ++ sinkToSinkTransitions,
       alphabet = alphabet dka
     }
 
@@ -214,7 +229,7 @@ main = do
         case switcher of 
           "-i" -> printCustomDKA formattedInput
         --TODO potom zmenit        
-          "-t" -> printCustomDKA (minimizeDKA formattedInput)
+          "-t" -> printCustomDKA (makeFullyDefinedDKA formattedInput)
           _ -> error "Chybny prepinac"
         hClose handle
 
