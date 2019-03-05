@@ -28,6 +28,9 @@ data DKA = DKA {
   end :: [String]
 } deriving (Show)
 
+-- reprezentacia sink stavu
+sink = "sink"
+
 -- ****************** NACITANIE VSTUPU *****************************
 
 -- podla poctu argumentov vrati stdin alebo otvoreny subor
@@ -144,18 +147,56 @@ createReachableStates start transitions =
       sii = sort (nub (getReachableStatesFromSi si transitions))
   in compareReachableStateGroups si sii transitions
 
+-- ****************** ELIMINACIA NEDOSIAHNUTELNYCH PRECHODOV **********
+
+createReachableTransitions :: [Transition] -> [String] -> [Transition]
+createReachableTransitions _ [] = []
+createReachableTransitions [] _ = []
+createReachableTransitions (x:xs) states =
+  if ((from x) `elem` states) && ((to x) `elem` states)
+    then [x] ++ createReachableTransitions xs states
+    else createReachableTransitions xs states
+
+-- ****************** PRECHODY DO SINK *****************************
+
+createSinkTransition :: String -> String -> Transition
+createSinkTransition state symbolFromAlphabet = 
+  Transition {
+    from = state,
+    symbol = symbolFromAlphabet,
+    to = sink
+  }
+
+getSinkTransitionsForStateAndSymbol :: String -> [Transition] -> String -> [Transition]
+getSinkTransitionsForStateAndSymbol state [] symbolFromAlphabet = [createSinkTransition state symbolFromAlphabet]
+getSinkTransitionsForStateAndSymbol state (x:xs) symbolFromAlphabet =
+  if (state == (from x)) && (symbolFromAlphabet == (symbol x))
+    then []
+    else getSinkTransitionsForStateAndSymbol state xs symbolFromAlphabet
+
+getSinkTransitionsForState :: String -> [Transition] -> [String] -> [Transition]
+getSinkTransitionsForState state transitions [] = []
+getSinkTransitionsForState state transitions (x:xs) = getSinkTransitionsForStateAndSymbol state transitions x ++ getSinkTransitionsForState state transitions xs
+
+addSinkTransitions :: [String] -> [Transition] -> [String] -> [Transition]
+addSinkTransitions [] transitions alphabet = []
+addSinkTransitions (x:xs) transitions alphabet = getSinkTransitionsForState x transitions alphabet ++ addSinkTransitions xs transitions alphabet
+
 -- ****************** WIP *****************************
 
 -- fake vypis TODO zmenit podla alg z TINu
 minimizeDKA :: DKA -> DKA
-minimizeDKA dka = DKA {
-    states = reachableStates,
-    start = start dka,
-    end = end dka,
-    transitions = transitions dka,
-    alphabet = alphabet dka
-  }
-  where reachableStates = createReachableStates (start dka) (transitions dka)
+minimizeDKA dka = 
+  let reachableStates = createReachableStates (start dka) (transitions dka)
+      reachableTransitions = createReachableTransitions (transitions dka) reachableStates
+      reachableTransitionsWithSink = reachableTransitions ++ addSinkTransitions reachableStates reachableTransitions (alphabet dka)
+  in DKA {
+      states = reachableStates,
+      start = start dka,
+      end = end dka,
+      transitions = reachableTransitionsWithSink,
+      alphabet = alphabet dka
+    }
 
 -- ******************************** MAIN *****************************
 main = do
