@@ -28,6 +28,23 @@ data DKA = DKA {
   end :: [String]
 } deriving (Show)
 
+-- struktura reprezentuje jeden stav v eq skupine
+data EqState = EqState {
+  name :: String,
+  trans :: [(String, String, String)] -- prechod (symbol, koncovy stav, cislo skupiny koncoveho stavu)
+} deriving (Show)
+
+-- struktura pre jednu skupinu v eq triede
+data  EqGroup = EqGroup {
+  number :: String,
+  stateList :: [EqState]
+} deriving (Show)
+
+-- struktura pre eq triedu
+data EqClass = EqClass {
+  groups :: [EqGroup]
+} deriving (Show)
+
 -- reprezentacia sink stavu
 sink = "sink"
 
@@ -196,9 +213,8 @@ addSinkToSinkTransitions [] = []
 addSinkToSinkTransitions (x:xs) = [createSinkTransition sink x] ++ (addSinkToSinkTransitions xs)
 
 
--- ****************** WIP *****************************
+-- ****************** UPLNY AUTOMAT *****************************
 
--- fake vypis TODO zmenit podla alg z TINu
 makeFullyDefinedDKA :: DKA -> DKA
 makeFullyDefinedDKA dka = 
   let reachableStates = createReachableStates (start dka) (transitions dka)
@@ -212,6 +228,106 @@ makeFullyDefinedDKA dka =
       transitions = reachableTransitions ++ sinkTransitions ++ sinkToSinkTransitions,
       alphabet = alphabet dka
     }
+
+-- ****************** WIP *****************************
+
+-- https://stackoverflow.com/questions/20447816/triple-accessing-element
+extractFirst :: (a,b,c) -> a
+extractFirst (a,_,_) = a
+
+extractSecond :: (a,b,c) -> b
+extractSecond (_,b,_) = b
+
+extractThird :: (a,b,c) -> c
+extractThird (_,_,c) = c
+
+printEqTrans :: (String, String, String) -> IO ()
+printEqTrans eq = do
+  putStrLn ("      " ++ (extractFirst eq) ++ "->" ++ (extractSecond eq) ++ "(" ++ (extractThird eq) ++ ")")
+
+printEqState :: EqState -> IO ()
+printEqState eq = do
+  putStrLn ("    " ++ (name eq))
+  mapM_ printEqTrans (trans eq)
+
+printEqGroup :: EqGroup -> IO ()
+printEqGroup eq = do
+  putStrLn ("group " ++ (number eq))
+  mapM_ printEqState (stateList eq)
+
+printEqClass :: EqClass -> IO ()
+printEqClass eq = do
+  mapM_ printEqGroup (groups eq)
+
+createEqTransTriple :: Transition -> DKA -> (String, String, String)
+createEqTransTriple transition dka = 
+  if (to transition) `elem` (end dka)
+    then ((symbol transition), (to transition), "1")
+    else ((symbol transition), (to transition), "2")
+
+createEqTrans :: String -> DKA -> [(String, String, String)]
+createEqTrans state dka = 
+  foldr (\transition eqTrans -> 
+    if (from transition) == state
+      then [createEqTransTriple transition dka] ++ eqTrans
+      else eqTrans)
+  [] (transitions dka)
+
+createEqState :: String -> DKA -> EqState
+createEqState state dka = 
+  EqState {
+    name = state,
+    trans = createEqTrans state dka
+  }
+
+getEndEqStates :: DKA -> [EqState]
+getEndEqStates dka =
+  foldr (\state eqStates -> 
+    if (state) `elem` (end dka)
+      then [createEqState state dka] ++ eqStates
+      else eqStates) 
+  [] (states dka)
+
+getNotEndEqStates :: DKA -> [EqState]
+getNotEndEqStates dka =
+  foldr (\state eqStates -> 
+    if (state) `elem` (end dka)
+      then eqStates
+      else [createEqState state dka] ++ eqStates) 
+  [] (states dka)
+
+createEqGroup :: String -> [EqState] -> EqGroup
+createEqGroup num states = 
+  EqGroup {
+    number = num,
+    stateList = states
+  }
+
+createEqGroups0 :: DKA -> [EqGroup]
+createEqGroups0 dka = 
+  let endGroup = createEqGroup "1" (getEndEqStates dka)
+      notEndGroup = createEqGroup "2" (getNotEndEqStates dka)
+  in [endGroup, notEndGroup]
+
+-- ekvivalencna trieda 0 - ma dve skupiny stavov: 1 su koncove a 2 nekoncove    
+createEqClass0 :: DKA -> EqClass
+createEqClass0 dka = 
+  let eqGroups = createEqGroups0 dka
+  in 
+    EqClass {
+      groups = eqGroups  
+    }
+
+-- TODO fix
+makeReducedDKA :: DKA -> EqClass
+makeReducedDKA dka = createEqClass0 dka 
+  -- in DKA {
+  --   states = states dka,
+  --   start = start dka,
+  --   end = end dka,
+  --   transitions = transitions dka,
+  --   alphabet = alphabet dka
+  -- }
 
 -- ******************************** MAIN *****************************
 main = do
@@ -229,7 +345,7 @@ main = do
         case switcher of 
           "-i" -> printCustomDKA formattedInput
         --TODO potom zmenit        
-          "-t" -> printCustomDKA (makeFullyDefinedDKA formattedInput)
+          "-t" -> printEqClass (makeReducedDKA (makeFullyDefinedDKA formattedInput))
           _ -> error "Chybny prepinac"
         hClose handle
 
