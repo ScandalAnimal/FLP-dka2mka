@@ -17,7 +17,7 @@ data Transition = Transition {
   from :: String,
   symbol :: String,
   to :: String
-} deriving (Show)
+} deriving (Show, Eq)
 
 -- vlastna reprezentacia DKA
 data DKA = DKA {
@@ -29,15 +29,21 @@ data DKA = DKA {
 } deriving (Show)
 
 -- struktura reprezentuje jeden stav v eq skupine
-data EqState = EqState {
-  name :: String,
-  trans :: [(String, String, String)] -- prechod (symbol, koncovy stav, cislo skupiny koncoveho stavu)
-} deriving (Show)
+-- data EqState = EqState {
+  -- name :: String,
+  -- trans :: [(String, String, String)] -- prechod (symbol, koncovy stav, cislo skupiny koncoveho stavu)
+-- } deriving (Show)
+
+data EqTransition = EqTransition {
+  transition :: Transition,
+  endGroup :: Int
+} deriving (Show, Eq)
 
 -- struktura pre jednu skupinu v eq triede
 data  EqGroup = EqGroup {
-  number :: String,
-  stateList :: [EqState]
+  number :: Int,
+  stateList :: [String],
+  transList :: [EqTransition]
 } deriving (Show)
 
 -- struktura pre eq triedu
@@ -231,82 +237,119 @@ makeFullyDefinedDKA dka =
 
 -- ****************** WIP *****************************
 
--- https://stackoverflow.com/questions/20447816/triple-accessing-element
-extractFirst :: (a,b,c) -> a
-extractFirst (a,_,_) = a
+data Test = Test {
+  eqClass :: EqClass,
+  trans :: [(Int, [[EqTransition]])],
+  trans2 :: [(Int, [[EqTransition]])],
+  groupCount :: Int,
+  groupStateList :: [(Int, [String])],
+  zipped :: [(Int, [EqTransition])]
+} deriving (Show)
 
-extractSecond :: (a,b,c) -> b
-extractSecond (_,b,_) = b
 
-extractThird :: (a,b,c) -> c
-extractThird (_,_,c) = c
-
-printEqTrans :: (String, String, String) -> IO ()
+printEqTrans :: EqTransition -> IO ()
 printEqTrans eq = do
-  putStrLn ("      " ++ (extractFirst eq) ++ "->" ++ (extractSecond eq) ++ "(" ++ (extractThird eq) ++ ")")
-
-printEqState :: EqState -> IO ()
-printEqState eq = do
-  putStrLn ("    " ++ (name eq))
-  mapM_ printEqTrans (trans eq)
+  putStrLn ("    " ++ (from (transition eq)) ++ "," 
+    ++ (symbol (transition eq)) ++ "," ++ (to (transition eq)) ++ "("
+    ++ (show (endGroup eq)) ++ ")")
 
 printEqGroup :: EqGroup -> IO ()
 printEqGroup eq = do
-  putStrLn ("group " ++ (number eq))
-  mapM_ printEqState (stateList eq)
+  putStrLn ("group " ++ (show (number eq)))
+  putStrLn (intercalate "," (stateList eq))
+  mapM_ printEqTrans (transList eq)
 
-printEqClass :: EqClass -> IO ()
+printEqTrans2 :: [EqTransition] -> IO ()
+printEqTrans2 eq = do
+  putStrLn ("skupina: ")
+  mapM_ printEqTrans eq
+
+printTestTrans :: (Int, [[EqTransition]]) -> IO ()
+printTestTrans x = do
+  putStrLn (show (fst x))
+  mapM_ printEqTrans2 (snd x)
+    
+printGSL :: (Int, [String]) -> IO ()
+printGSL x = do
+  putStr ((show(fst x)) ++ ": ")
+  putStr (intercalate "," (snd x))
+  putStrLn ("")
+
+printZipped :: (Int, [EqTransition]) -> IO ()
+printZipped eq = do
+  putStrLn (show (fst eq))
+  mapM_ printEqTrans (snd eq)
+
+
+printEqClass :: Test -> IO ()
 printEqClass eq = do
-  mapM_ printEqGroup (groups eq)
+  putStrLn ("GSL: ")
+  mapM_ printGSL (groupStateList eq)
+  putStrLn ("GROUPS: ")
+  mapM_ printEqGroup (groups (eqClass eq))
+  putStrLn ("pocet skupin: " ++ show (groupCount eq))
+  mapM_ printTestTrans (trans eq)
+  putStrLn ("new")
+  mapM_ printTestTrans (trans2 eq)
+  putStrLn ("zipped")
+  mapM_ printZipped (zipped eq)
 
-createEqTransTriple :: Transition -> DKA -> (String, String, String)
-createEqTransTriple transition dka = 
-  if (to transition) `elem` (end dka)
-    then ((symbol transition), (to transition), "1")
-    else ((symbol transition), (to transition), "2")
+createEqTransition :: Transition -> DKA -> EqTransition
+createEqTransition trans dka = 
+  if (to trans) `elem` (end dka)
+    then 
+      EqTransition {
+        transition = trans,
+        endGroup = 1
+      }
+    else
+      EqTransition {
+        transition = trans,
+        endGroup = 2
+      }  
 
-createEqTrans :: String -> DKA -> [(String, String, String)]
-createEqTrans state dka = 
+createEqTransitions :: String -> DKA -> [EqTransition]
+createEqTransitions state dka = 
   foldr (\transition eqTrans -> 
     if (from transition) == state
-      then [createEqTransTriple transition dka] ++ eqTrans
+      then [createEqTransition transition dka] ++ eqTrans
       else eqTrans)
   [] (transitions dka)
 
-createEqState :: String -> DKA -> EqState
-createEqState state dka = 
-  EqState {
-    name = state,
-    trans = createEqTrans state dka
-  }
-
-getEndEqStates :: DKA -> [EqState]
-getEndEqStates dka =
+getEndEqTransitions :: DKA -> [EqTransition]
+getEndEqTransitions dka =
   foldr (\state eqStates -> 
     if (state) `elem` (end dka)
-      then [createEqState state dka] ++ eqStates
+      then (createEqTransitions state dka) ++ eqStates
       else eqStates) 
   [] (states dka)
 
-getNotEndEqStates :: DKA -> [EqState]
-getNotEndEqStates dka =
+getNotEndEqTransitions :: DKA -> [EqTransition]
+getNotEndEqTransitions dka =
   foldr (\state eqStates -> 
     if (state) `elem` (end dka)
       then eqStates
-      else [createEqState state dka] ++ eqStates) 
+      else (createEqTransitions state dka) ++ eqStates) 
   [] (states dka)
 
-createEqGroup :: String -> [EqState] -> EqGroup
-createEqGroup num states = 
+getStateListFromTransitions :: [EqTransition] -> [String]
+getStateListFromTransitions [] = []
+getStateListFromTransitions (x:xs) = [from (transition x)] ++ getStateListFromTransitions xs
+
+createEqGroup :: Int -> [EqTransition] -> EqGroup
+createEqGroup num transitions = 
+  let stateList = sort (nub (getStateListFromTransitions transitions))
+  in
   EqGroup {
     number = num,
-    stateList = states
+    stateList = stateList,
+    transList = transitions
   }
 
 createEqGroups0 :: DKA -> [EqGroup]
 createEqGroups0 dka = 
-  let endGroup = createEqGroup "1" (getEndEqStates dka)
-      notEndGroup = createEqGroup "2" (getNotEndEqStates dka)
+  let endGroup = createEqGroup 1 (getEndEqTransitions dka)
+      notEndGroup = createEqGroup 2 (getNotEndEqTransitions dka)
   in [endGroup, notEndGroup]
 
 -- ekvivalencna trieda 0 - ma dve skupiny stavov: 1 su koncove a 2 nekoncove    
@@ -318,9 +361,238 @@ createEqClass0 dka =
       groups = eqGroups  
     }
 
+getEndGroups :: [EqTransition] -> [Int]
+getEndGroups [] = []
+getEndGroups (x:xs) = [endGroup x] ++ getEndGroups xs
+
+checkEndGroups :: [EqGroup] -> [(Int, [Int])]
+checkEndGroups [] = []
+checkEndGroups (x:xs) = [(number x, sort (nub (getEndGroups (transList x))))] ++ checkEndGroups xs
+
+-- getCorrectGroup :: String -> [EqGroup] -> EqGroup
+-- getCorrectGroup num (x:xs) =
+--   if num == (number x)
+--     then x
+--     else getCorrectGroup num xs
+
+-- getGroupTransition :: String -> [EqTransition] -> [EqTransition]
+-- getGroupTransition _ [] = []
+-- getGroupTransition num (x:xs) = 
+--   if num == (endGroup x)
+--     then [x] ++ getGroupTransition num xs
+--     else getGroupTransition num xs
+
+-- getGroupTransitions :: String -> [String] -> [EqTransition] -> [[EqTransition]]
+-- getGroupTransitions _ _ [] = []
+-- getGroupTransitions _ [] _ = []
+-- getGroupTransitions f (x:xs) trans = [getGroupTransition x trans] ++ getGroupTransitions f xs trans 
+
+-- splitTransitions :: [(String, [String])] -> [EqGroup]-> [(String, [[EqTransition]])]
+-- splitTransitions [] _ = []
+-- splitTransitions _ [] = []
+-- splitTransitions (x:xs) groups = 
+--   let correctGroup = getCorrectGroup (fst x) groups
+--       groupTransitions = getGroupTransitions (fst x) (snd x) (transList correctGroup)
+--   in [(fst x, groupTransitions)] ++ (splitTransitions xs groups)
+
+-- transitionsWithSymbol :: String -> [[EqTransition]] -> [EqTransition]
+-- transitionsWithSymbol _ [] = []
+-- transitionsWithSymbol symbol (x:xs) =
+--   if symbol == (symbol (transition x))
+--     then [x] ++ transitionsWithSymbol symbol xs
+--     else transitionsWithSymbol symbol xs
+
+-- splitTransitionsForGroup :: [[EqTransition]] -> [(String, [String])] -> [String] -> [[EqTransition]]
+-- splitTransitionsForGroup [] _ _ = []
+-- splitTransitionsForGroup _ [] _ = []
+-- splitTransitionsForGroup _ _ [] = []
+-- splitTransitionsForGroup transList groupStateList (x:xs) = 
+--   let trans = transitionsWithSymbol x transList
+--       endGroups = sort (nub (getEndGroups trans))
+--   in
+--     if (length endGroups) == 1
+--       then splitTransitionsForGroup transList groupStateList xs
+--       else 
+
+
+-- splitTransitions :: [EqGroup] -> [(String, [String])] -> [String] -> [(String, [[EqTransition]])]
+-- splitTransitions [] _ _ = []
+-- splitTransitions _ [] _ = []
+-- splitTransitions _ _ [] = []
+-- splitTransitions (x:xs) groupStateList alphabet = splitTransitionsForGroup [(transList x)] groupStateList alphabet ++ splitTransitions xs groupStateList alphabet
+
+
+getCurrentTransitions :: [EqGroup] -> [(Int, [[EqTransition]])]
+getCurrentTransitions [] = []
+getCurrentTransitions (x:xs) = [((number x), [(transList x)])] ++ getCurrentTransitions xs
+
+createGroupStateList :: [EqGroup] -> [(Int, [String])]
+createGroupStateList [] = []
+createGroupStateList (x:xs) = [((number x), (stateList x))] ++ createGroupStateList xs
+
+countTrans2 :: [EqTransition] -> String -> Int
+countTrans2 [] _ = 0
+countTrans2 (x:xs) sym = 
+  if (symbol (transition x)) == sym
+    then 1 + countTrans2 xs sym
+    else countTrans2 xs sym
+
+countTrans :: [[EqTransition]] -> String -> [Int]
+countTrans [] _ = []
+countTrans (x:xs) sym = [countTrans2 x sym] ++ countTrans xs sym
+
+findAll :: Int -> [EqTransition] -> String -> [String]
+findAll _ [] _ = []
+findAll groupNumber (x:xs) sym = 
+  if ((symbol (transition x)) == sym) && ((endGroup x) == groupNumber)
+    then [from (transition x)] ++ findAll groupNumber xs sym
+    else findAll groupNumber xs sym
+
+getTrans :: [String] -> [EqTransition] -> [EqTransition]
+getTrans [] _ = []
+getTrans _ [] = []
+getTrans states (x:xs) =
+  if (from (transition x) `elem` states)
+    then [x] ++ getTrans states xs
+    else getTrans states xs
+
+
+countNew :: [Int] -> [EqTransition] -> String -> [[EqTransition]]
+countNew [] _ _ = []
+countNew _ [] _ = []
+countNew (x:xs) trans sym =
+  let a = findAll x trans sym
+      getTransx = getTrans a trans
+  in [getTransx] ++ countNew xs trans sym
+
+
+newTrans :: [(Int, [EqTransition])] -> [Int] -> String -> [[EqTransition]]
+newTrans [] _ _ = []
+newTrans  _ [] _ = []
+newTrans (x:xs) checkList sym =
+  if (fst x) > 1
+    then
+      countNew checkList (snd x) sym ++ newTrans xs checkList sym
+    else
+      [(snd x)] ++ newTrans xs checkList sym
+
+newTransitions2 :: [[EqTransition]] -> [String] -> [Int] -> [[EqTransition]]
+-- newTransitions2 :: [[EqTransition]] -> [String] -> [String] -> [(Int, [EqTransition])]
+newTransitions2 [] _ _ = []
+newTransitions2 x [] _ = x
+newTransitions2 _ _ [] = []
+newTransitions2 trans (x:xs) groupCheckList = 
+  let countTransx = countTrans trans x -- [1,4,5]
+      zipped = zip countTransx trans
+      newTransx = newTrans zipped groupCheckList x
+      -- countTransxz = countTrans newTransx y -- [1,4,5]
+      -- zippedx = zip countTransxz newTransx
+      -- newTransxz = newTrans zippedx groupCheckList y
+  in newTransitions2 newTransx xs groupCheckList
+  -- in newTransxz
+  -- in zipped
+
+getGroupCheckList :: [(Int, [Int])] -> Int -> [Int]
+getGroupCheckList [] _ = []
+getGroupCheckList (x:xs) name =
+  if (fst x) == name
+    then snd x
+    else getGroupCheckList xs name
+
+newTransitions :: [(Int, [[EqTransition]])] -> [String] -> [(Int, [Int])] -> [(Int, [[EqTransition]])]
+-- newTransitions :: [(String, [[EqTransition]])] -> [String] -> [(String, [String])] -> [(Int, [EqTransition])]
+newTransitions [] _ _ = []
+newTransitions _ [] _ = []
+newTransitions _ _ [] = []
+newTransitions (x:xs) alphabet endGroupCheck = 
+  let groupCheckList = getGroupCheckList endGroupCheck (fst x) -- ["I","II"]
+      a = filter (not . null) (newTransitions2 (snd x) alphabet groupCheckList)
+  in [((fst x), a)] ++ newTransitions xs alphabet endGroupCheck
+  -- in a ++ newTransitions xs alphabet endGroupCheck
+
+  -- if (length (snd x)) > alphabetLength
+    -- then newTransitions xs alphabetLength
+    -- else [x] ++ newTransitions xs alphabetLength
+
+renGroups :: Int -> [[EqTransition]] -> [(Int, [[EqTransition]])]
+renGroups _ [] = []
+renGroups i (x:xs) = [(i, [x])] ++ renGroups (i+1) xs
+
+renameGroups :: [(Int, [[EqTransition]])] -> Int -> [(Int, [[EqTransition]])]
+renameGroups [] _ = [] 
+renameGroups (x:xs) i = 
+  let len = (length (snd x)) + i
+  in renGroups i (snd x) ++ renameGroups xs len
+
+getStateNames2 :: [EqTransition] -> [String]
+getStateNames2 [] = []
+getStateNames2 (x:xs) = [(from (transition x))] ++ getStateNames2 xs
+
+getStateNames :: [[EqTransition]] -> [String]
+getStateNames [] = []
+getStateNames (x:xs) = getStateNames2 x ++ getStateNames xs
+
+createNewGSL :: [(Int, [[EqTransition]])] -> [(Int, [String])]
+createNewGSL [] = []
+createNewGSL (x:xs) = [((fst x), sort (nub (getStateNames (snd x))))] ++ createNewGSL xs
+
+getNewEndGroup :: [(Int, [String])] -> String -> Int
+getNewEndGroup [] _ = 0
+getNewEndGroup (x:xs) state = 
+  if state `elem` (snd x)
+    then fst x
+    else getNewEndGroup xs state
+
+getNewTrans2 :: [EqTransition] -> [(Int, [String])] -> [EqTransition]
+getNewTrans2 [] _ = []
+getNewTrans2 _ [] = []
+getNewTrans2 (x:xs) gsl = 
+  let newEndGroup = getNewEndGroup gsl (to (transition x))
+      a = EqTransition {
+        transition = transition x,
+        endGroup = newEndGroup
+      }   
+  in [a] ++ getNewTrans2 xs gsl 
+
+getNewTrans :: [[EqTransition]] -> [(Int, [String])] -> [[EqTransition]]
+getNewTrans [] _ = []
+getNewTrans _ [] = []
+getNewTrans (x:xs) gsl = [getNewTrans2 x gsl] ++ getNewTrans xs gsl 
+
+
+fixEndGroups :: [(Int, [[EqTransition]])] -> [(Int, [String])] -> [(Int, [[EqTransition]])]
+fixEndGroups [] _ = []
+fixEndGroups _ [] = []
+fixEndGroups (x:xs) gsl = [((fst x), getNewTrans (snd x) gsl)] ++ fixEndGroups xs gsl
+
+
+reduceEqClass :: EqClass -> [String] -> Test
+reduceEqClass eqClassI alphabet = 
+  let endGroupCheck = checkEndGroups (groups eqClassI) 
+      groupCount = length endGroupCheck
+      i = getCurrentTransitions (groups eqClassI)
+      -- ii = splitTransitions (groups eqClassI) groupStateList alphabet
+      ii = newTransitions i alphabet endGroupCheck
+      renamedGroups = renameGroups ii 1
+      newGSL = createNewGSL renamedGroups
+      fixedEndGroups = fixEndGroups renamedGroups newGSL
+  in 
+    Test {
+      eqClass = eqClassI,
+      trans = i,
+      trans2 = fixedEndGroups,
+      groupCount = groupCount,
+      -- groupStateList = createGroupStateList (groups eqClassI),
+      groupStateList = newGSL,
+      zipped = []
+    }
+
 -- TODO fix
-makeReducedDKA :: DKA -> EqClass
-makeReducedDKA dka = createEqClass0 dka 
+makeReducedDKA :: DKA -> Test
+makeReducedDKA dka = 
+  let eqClass0 = createEqClass0 dka
+      eqClassMax = reduceEqClass eqClass0 (alphabet dka)
+  in  eqClassMax
   -- in DKA {
   --   states = states dka,
   --   start = start dka,
