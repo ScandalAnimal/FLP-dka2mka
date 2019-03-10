@@ -8,8 +8,6 @@ import Data.List
 import Data.List.Split
 import Data.Char
 
--- ****************** CORRECT *****************************
-
 -- ****************** DATOVE TYPY *****************************
 
 -- vlastna reprezentacia prechodov
@@ -28,19 +26,20 @@ data DKA = DKA {
   endStates :: [String]
 } deriving (Show)
 
+-- reprezentacia prechodu v ekv. triede, ukladame si aj do ktorej skupiny patri koncovy stav
 data EqTransition = EqTransition {
   transition :: Transition,
   endStateGroupId :: Int
 } deriving (Show, Eq)
 
--- struktura pre jednu skupinu v eq triede
+-- struktura pre jednu skupinu v eq triede, obsahuje id, zoznam stavov a prechodov
 data EqGroup = EqGroup {
   groupId :: Int,
   stateList :: [String],
   transitionList :: [EqTransition]
 } deriving (Show, Eq)
 
--- struktura pre eq triedu
+-- struktura pre eq triedu, obsahuje skupiny
 data EqClass = EqClass {
   groups :: [EqGroup]
 } deriving (Show, Eq)
@@ -246,65 +245,23 @@ createFullyDefinedDKA dka =
       alphabet = alphabet dka
     }
 
--- ****************** WIP *****************************
+-- ***************** EKVIVALENCNA TRIEDA 0 ***************************
 
-data Test = Test {
-  eqClass :: EqClass,
-  trans :: [(Int, [[EqTransition]])],
-  trans2 :: [(Int, [[EqTransition]])],
-  groupCount :: Int,
-  groupStateList :: [(Int, [String])],
-  zipped :: [(Int, [EqTransition])]
-} deriving (Show)
+-- ziska zoznam vsetkych vstupnych stavov zo zoznamu prechodov
+getStateListFromTransitions :: [EqTransition] -> [String]
+getStateListFromTransitions [] = []
+getStateListFromTransitions (x:xs) = [from (transition x)] ++ getStateListFromTransitions xs
 
+-- vytvori jednu skupinu v ekv. triede, podla parametrov id a prechodov, stavy si vypocita
+createEqGroup :: Int -> [EqTransition] -> EqGroup
+createEqGroup id transitions = 
+  EqGroup {
+    groupId = id,
+    stateList = sort (nub (getStateListFromTransitions transitions)),
+    transitionList = transitions
+  }
 
-printEqTrans :: EqTransition -> IO ()
-printEqTrans eq = do
-  putStrLn ("    " ++ (from (transition eq)) ++ "," 
-    ++ (symbol (transition eq)) ++ "," ++ (to (transition eq)) ++ "("
-    ++ (show (endStateGroupId eq)) ++ ")")
-
-printEqGroup :: EqGroup -> IO ()
-printEqGroup eq = do
-  putStrLn ("group " ++ (show (groupId eq)))
-  putStrLn (intercalate "," (stateList eq))
-  mapM_ printEqTrans (transitionList eq)
-
-printEqTrans2 :: [EqTransition] -> IO ()
-printEqTrans2 eq = do
-  putStrLn ("skupina: ")
-  mapM_ printEqTrans eq
-
-printTestTrans :: (Int, [[EqTransition]]) -> IO ()
-printTestTrans x = do
-  putStrLn (show (fst x))
-  mapM_ printEqTrans2 (snd x)
-    
-printGSL :: (Int, [String]) -> IO ()
-printGSL x = do
-  putStr ((show(fst x)) ++ ": ")
-  putStr (intercalate "," (snd x))
-  putStrLn ("")
-
-printZipped :: (Int, [EqTransition]) -> IO ()
-printZipped eq = do
-  putStrLn (show (fst eq))
-  mapM_ printEqTrans (snd eq)
-
-
-printEqClass :: EqClass -> IO ()
-printEqClass eq = do
-  -- putStrLn ("GSL: ")
-  -- mapM_ printGSL (groupStateList eq)
-  putStrLn ("GROUPS: ")
-  mapM_ printEqGroup (groups eq)
-  -- putStrLn ("pocet skupin: " ++ show (groupCount eq))
-  -- mapM_ printTestTrans (trans eq)
-  -- putStrLn ("new")
-  -- mapM_ printTestTrans (trans2 eq)
-  -- putStrLn ("zipped")
-  -- mapM_ printZipped (zipped eq)
-
+-- vytvori EqTransition z Transition podla toho ci ide do koncoveho stavu alebo nie
 createEqTransition :: Transition -> DKA -> EqTransition
 createEqTransition trans dka = 
   if (to trans) `elem` (endStates dka)
@@ -317,294 +274,284 @@ createEqTransition trans dka =
       EqTransition {
         transition = trans,
         endStateGroupId = 2
-      }  
+      } 
 
-createEqTransitions :: String -> DKA -> [EqTransition]
-createEqTransitions state dka = 
+-- prechadza zoznam prechodov s danym vstupnym stavom, konvertuje ich na objekty EqTransition
+createEqTransitionList :: String -> DKA -> [EqTransition]
+createEqTransitionList state dka = 
   foldr (\transition eqTrans -> 
     if (from transition) == state
       then [createEqTransition transition dka] ++ eqTrans
       else eqTrans)
   [] (transitions dka)
 
+-- ak je stav koncovy stav tak vratim jeho prechody
 getEndEqTransitions :: DKA -> [EqTransition]
 getEndEqTransitions dka =
   foldr (\state eqStates -> 
     if (state) `elem` (endStates dka)
-      then (createEqTransitions state dka) ++ eqStates
+      then (createEqTransitionList state dka) ++ eqStates
       else eqStates) 
   [] (allStates dka)
 
+-- ak je stav nekoncovy tak vratim jeho prechody
 getNotEndEqTransitions :: DKA -> [EqTransition]
 getNotEndEqTransitions dka =
   foldr (\state eqStates -> 
     if (state) `elem` (endStates dka)
       then eqStates
-      else (createEqTransitions state dka) ++ eqStates) 
+      else (createEqTransitionList state dka) ++ eqStates) 
   [] (allStates dka)
 
-getStateListFromTransitions :: [EqTransition] -> [String]
-getStateListFromTransitions [] = []
-getStateListFromTransitions (x:xs) = [from (transition x)] ++ getStateListFromTransitions xs
-
-createEqGroup :: Int -> [EqTransition] -> EqGroup
-createEqGroup num transitions = 
-  let stateList = sort (nub (getStateListFromTransitions transitions))
-  in
-  EqGroup {
-    groupId = num,
-    stateList = stateList,
-    transitionList = transitions
-  }
-
-createEqGroups0 :: DKA -> [EqGroup]
-createEqGroups0 dka = 
-  let endStateGroupId = createEqGroup 1 (getEndEqTransitions dka)
+-- vytvori dve ekv. skupiny podla toho ci to su prechody z koncovych alebo nekoncovych stavov
+createEqGroupsFromTuples0 :: DKA -> [EqGroup]
+createEqGroupsFromTuples0 dka = 
+  let endGroup = createEqGroup 1 (getEndEqTransitions dka)
       notEndGroup = createEqGroup 2 (getNotEndEqTransitions dka)
-  in [endStateGroupId, notEndGroup]
+  in [endGroup, notEndGroup]
 
 -- ekvivalencna trieda 0 - ma dve skupiny stavov: 1 su koncove a 2 nekoncove    
 createEqClass0 :: DKA -> EqClass
 createEqClass0 dka = 
-  let eqGroups = createEqGroups0 dka
-  in 
-    EqClass {
-      groups = eqGroups  
-    }
+  EqClass {
+    groups = createEqGroupsFromTuples0 dka
+  }
 
-getEndGroups :: [EqTransition] -> [Int]
-getEndGroups [] = []
-getEndGroups (x:xs) = [endStateGroupId x] ++ getEndGroups xs
+-- ********************* MAPA STAVOV V SKUPINACH ************************
 
-checkEndGroups :: [EqGroup] -> [(Int, [Int])]
-checkEndGroups [] = []
-checkEndGroups (x:xs) = [(groupId x, sort (nub (getEndGroups (transitionList x))))] ++ checkEndGroups xs
+-- vytvori zoznam skupin do ktorych vedu prechody
+createGroupMapEntry :: [EqTransition] -> [Int]
+createGroupMapEntry [] = []
+createGroupMapEntry (x:xs) = [endStateGroupId x] ++ createGroupMapEntry xs
 
-getCurrentTransitions :: [EqGroup] -> [(Int, [[EqTransition]])]
-getCurrentTransitions [] = []
-getCurrentTransitions (x:xs) = [((groupId x), [(transitionList x)])] ++ getCurrentTransitions xs
-
-createGroupStateList :: [EqGroup] -> [(Int, [String])]
-createGroupStateList [] = []
-createGroupStateList (x:xs) = [((groupId x), (stateList x))] ++ createGroupStateList xs
-
-countTrans2 :: [EqTransition] -> String -> Int
-countTrans2 [] _ = 0
-countTrans2 (x:xs) sym = 
-  if (symbol (transition x)) == sym
-    then 1 + countTrans2 xs sym
-    else countTrans2 xs sym
-
-countTrans :: [[EqTransition]] -> String -> [Int]
-countTrans [] _ = []
-countTrans (x:xs) sym = [countTrans2 x sym] ++ countTrans xs sym
-
-findAll :: Int -> [EqTransition] -> String -> [String]
-findAll _ [] _ = []
-findAll groupNumber (x:xs) sym = 
-  if ((symbol (transition x)) == sym) && ((endStateGroupId x) == groupNumber)
-    then [from (transition x)] ++ findAll groupNumber xs sym
-    else findAll groupNumber xs sym
-
-getTrans :: [String] -> [EqTransition] -> [EqTransition]
-getTrans [] _ = []
-getTrans _ [] = []
-getTrans allStates (x:xs) =
-  if (from (transition x) `elem` allStates)
-    then [x] ++ getTrans allStates xs
-    else getTrans allStates xs
-
-
-countNew :: [Int] -> [EqTransition] -> String -> [[EqTransition]]
-countNew [] _ _ = []
-countNew _ [] _ = []
-countNew (x:xs) trans sym =
-  let a = findAll x trans sym
-      getTransx = getTrans a trans
-  in [getTransx] ++ countNew xs trans sym
-
-
-newTrans :: [(Int, [EqTransition])] -> [Int] -> String -> [[EqTransition]]
-newTrans [] _ _ = []
-newTrans  _ [] _ = []
-newTrans (x:xs) checkList sym =
-  if (fst x) > 1
-    then
-      countNew checkList (snd x) sym ++ newTrans xs checkList sym
-    else
-      [(snd x)] ++ newTrans xs checkList sym
-
-newTransitions2 :: [[EqTransition]] -> [String] -> [Int] -> [[EqTransition]]
--- newTransitions2 :: [[EqTransition]] -> [String] -> [String] -> [(Int, [EqTransition])]
-newTransitions2 [] _ _ = []
-newTransitions2 x [] _ = x
-newTransitions2 _ _ [] = []
-newTransitions2 trans (x:xs) groupCheckList = 
-  let countTransx = countTrans trans x -- [1,4,5]
-      zipped = zip countTransx trans
-      newTransx = newTrans zipped groupCheckList x
-      -- countTransxz = countTrans newTransx y -- [1,4,5]
-      -- zippedx = zip countTransxz newTransx
-      -- newTransxz = newTrans zippedx groupCheckList y
-  in newTransitions2 newTransx xs groupCheckList
-  -- in newTransxz
-  -- in zipped
-
-getGroupCheckList :: [(Int, [Int])] -> Int -> [Int]
-getGroupCheckList [] _ = []
-getGroupCheckList (x:xs) name =
+-- najde v mape stavov zoznam
+getGroupMapEntry :: [(Int, [Int])] -> Int -> [Int]
+getGroupMapEntry [] _ = []
+getGroupMapEntry (x:xs) name =
   if (fst x) == name
     then snd x
-    else getGroupCheckList xs name
+    else getGroupMapEntry xs name
 
-newTransitions :: [(Int, [[EqTransition]])] -> [String] -> [(Int, [Int])] -> [(Int, [[EqTransition]])]
--- newTransitions :: [(String, [[EqTransition]])] -> [String] -> [(String, [String])] -> [(Int, [EqTransition])]
-newTransitions [] _ _ = []
-newTransitions _ [] _ = []
-newTransitions _ _ [] = []
-newTransitions (x:xs) alphabet endStateGroupIdCheck = 
-  let groupCheckList = getGroupCheckList endStateGroupIdCheck (fst x) -- ["I","II"]
-      a = filter (not . null) (newTransitions2 (snd x) alphabet groupCheckList)
-  in [((fst x), a)] ++ newTransitions xs alphabet endStateGroupIdCheck
-  -- in a ++ newTransitions xs alphabet endStateGroupIdCheck
+-- pre kazdu skupinu vrati zoznam skupin do ktorych vedu prechody v danej skupine
+getGroupMap :: [EqGroup] -> [(Int, [Int])]
+getGroupMap [] = []
+getGroupMap (x:xs) = [(groupId x, sort (nub (createGroupMapEntry (transitionList x))))] ++ getGroupMap xs
 
-renGroups :: Int -> [[EqTransition]] -> [(Int, [[EqTransition]])]
-renGroups _ [] = []
-renGroups i (x:xs) = [(i, [x])] ++ renGroups (i+1) xs
+-- vrati zoznam vstupnych stavov pre dany zoznam prechodov
+getStatesFromTransitionList :: [EqTransition] -> [String]
+getStatesFromTransitionList [] = []
+getStatesFromTransitionList (x:xs) = [(from (transition x))] ++ getStatesFromTransitionList xs
 
-renameGroups :: [(Int, [[EqTransition]])] -> Int -> [(Int, [[EqTransition]])]
-renameGroups [] _ = [] 
-renameGroups (x:xs) i = 
+-- cyklus na zistenie vstupnych stavov
+getStatesFromTransitionLists :: [[EqTransition]] -> [String]
+getStatesFromTransitionLists [] = []
+getStatesFromTransitionLists (x:xs) = getStatesFromTransitionList x ++ getStatesFromTransitionLists xs
+
+-- vytvori novy zoznam stavov v kazdej skupine po kroku minimalizacie
+createNewGroupMap :: [(Int, [[EqTransition]])] -> [(Int, [String])]
+createNewGroupMap [] = []
+createNewGroupMap (x:xs) = [((fst x), sort (nub (getStatesFromTransitionLists(snd x))))] ++ createNewGroupMap xs
+
+-- ******************** ROZDELOVANIE SKUPIN **************************
+
+-- skupiny v ekv. triede skonvertuje na tuples, je to priprava na rozdelovanie skupin na mensie
+convertGroupsToTuples :: [EqGroup] -> [(Int, [[EqTransition]])]
+convertGroupsToTuples [] = []
+convertGroupsToTuples (x:xs) = [((groupId x), [(transitionList x)])] ++ convertGroupsToTuples xs
+
+-- pre jednu skupinu prechodov spocita kolko ich je cez dany symbol
+countTransitionsForSymbol :: [EqTransition] -> String -> Int
+countTransitionsForSymbol [] _ = 0
+countTransitionsForSymbol (x:xs) sym = 
+  if (symbol (transition x)) == sym
+    then 1 + countTransitionsForSymbol xs sym
+    else countTransitionsForSymbol xs sym
+
+-- spocita kolko prechodov cez dany symbol je v kazdej skupine prechodov
+countTransitionListForSymbol :: [[EqTransition]] -> String -> [Int]
+countTransitionListForSymbol [] _ = []
+countTransitionListForSymbol (x:xs) sym = [countTransitionsForSymbol x sym] ++ countTransitionListForSymbol xs sym
+
+-- v zozname prechodov najde tie s danym symbolom a konecnym stavom, vrati pociatocne stavy
+getStatesFromEqTransitionList :: Int -> [EqTransition] -> String -> [String]
+getStatesFromEqTransitionList _ [] _ = []
+getStatesFromEqTransitionList groupNumber (x:xs) sym = 
+  if ((symbol (transition x)) == sym) && ((endStateGroupId x) == groupNumber)
+    then [from (transition x)] ++ getStatesFromEqTransitionList groupNumber xs sym
+    else getStatesFromEqTransitionList groupNumber xs sym
+
+-- pre zoznam stavov najde vsetky prechody z danych stavov
+getTransitionListForStates :: [String] -> [EqTransition] -> [EqTransition]
+getTransitionListForStates [] _ = []
+getTransitionListForStates _ [] = []
+getTransitionListForStates allStates (x:xs) =
+  if (from (transition x) `elem` allStates)
+    then [x] ++ getTransitionListForStates allStates xs
+    else getTransitionListForStates allStates xs
+
+-- pre kazdu skupinu konecnych stavov v danej skupine najde vsetky prechody do danej skupiny,
+-- vytvori z nich zoznam prechodov a taketo zoznamy da do jedneho zoznamu a vrati
+splitTransitionsForGroups :: [Int] -> [EqTransition] -> String -> [[EqTransition]]
+splitTransitionsForGroups [] _ _ = []
+splitTransitionsForGroups _ [] _ = []
+splitTransitionsForGroups (x:xs) trans sym =
+  let states = getStatesFromEqTransitionList x trans sym
+      transitionList = getTransitionListForStates states trans
+  in [transitionList] ++ splitTransitionsForGroups xs trans sym
+
+-- ak v danej skupine pre dany symbol je viac ako jedna koncova skupina, tak sa musi rozdelit
+-- ak nie je tak sa len aktualna skupina ulozi a pokracuje sa na dalsiu
+createNewTransitions :: [(Int, [EqTransition])] -> [Int] -> String -> [[EqTransition]]
+createNewTransitions [] _ _ = []
+createNewTransitions  _ [] _ = []
+createNewTransitions (x:xs) groupMapEntry sym =
+  if (fst x) > 1
+    then splitTransitionsForGroups groupMapEntry (snd x) sym ++ createNewTransitions xs groupMapEntry sym
+    else [(snd x)] ++ createNewTransitions xs groupMapEntry sym
+
+-- vezme aktualne skupiny prechodov, zaradom prechadza symboly abecedy a rozdeluje skupiny
+createNewEqTransitionLists :: [[EqTransition]] -> [String] -> [Int] -> [[EqTransition]]
+createNewEqTransitionLists [] _ _ = []
+createNewEqTransitionLists x [] _ = x
+createNewEqTransitionLists _ _ [] = []
+createNewEqTransitionLists trans (x:xs) groupMapEntry = 
+  let counts = countTransitionListForSymbol trans x
+      zippedLists = zip counts trans
+      newTransitions = createNewTransitions zippedLists groupMapEntry x
+  in createNewEqTransitionLists newTransitions xs groupMapEntry
+
+-- dostane aktualne dvojice (nazov skupiny, jej prechody), abecedu a aktualnu mapu stavov
+-- najde si do ktorych stavov sa vie v danej skupine dostat, vypocita nove skupiny a vrati
+splitTuples :: [(Int, [[EqTransition]])] -> [String] -> [(Int, [Int])] -> [(Int, [[EqTransition]])]
+splitTuples [] _ _ = []
+splitTuples _ [] _ = []
+splitTuples _ _ [] = []
+splitTuples (x:xs) alphabet groupMap = 
+  let entry = getGroupMapEntry groupMap (fst x)
+      newTransitionLists = filter (not . null) (createNewEqTransitionLists (snd x) alphabet entry)
+  in [((fst x), newTransitionLists)] ++ splitTuples xs alphabet groupMap
+
+-- ************************* PREMENOVANIE SKUPIN *********************
+
+renameOneTuple :: Int -> [[EqTransition]] -> [(Int, [[EqTransition]])]
+renameOneTuple _ [] = []
+renameOneTuple i (x:xs) = [(i, [x])] ++ renameOneTuple (i+1) xs
+
+renameTuples :: [(Int, [[EqTransition]])] -> Int -> [(Int, [[EqTransition]])]
+renameTuples [] _ = [] 
+renameTuples (x:xs) i = 
   let len = (length (snd x)) + i
-  in renGroups i (snd x) ++ renameGroups xs len
+  in renameOneTuple i (snd x) ++ renameTuples xs len
 
-getStateNames2 :: [EqTransition] -> [String]
-getStateNames2 [] = []
-getStateNames2 (x:xs) = [(from (transition x))] ++ getStateNames2 xs
+-- ********************* OPRAVA KONCOVYCH STAVOV *********************************
 
-getStateNames :: [[EqTransition]] -> [String]
-getStateNames [] = []
-getStateNames (x:xs) = getStateNames2 x ++ getStateNames xs
-
-createNewGSL :: [(Int, [[EqTransition]])] -> [(Int, [String])]
-createNewGSL [] = []
-createNewGSL (x:xs) = [((fst x), sort (nub (getStateNames (snd x))))] ++ createNewGSL xs
-
-getNewEndGroup :: [(Int, [String])] -> String -> Int
-getNewEndGroup [] _ = 0
-getNewEndGroup (x:xs) state = 
+-- vrati nove group id podla toho do ktorej skupiny patri stav po novom
+getGroupId :: [(Int, [String])] -> String -> Int
+getGroupId [] _ = 0
+getGroupId (x:xs) state = 
   if state `elem` (snd x)
     then fst x
-    else getNewEndGroup xs state
+    else getGroupId xs state
 
-getNewTrans2 :: [EqTransition] -> [(Int, [String])] -> [EqTransition]
-getNewTrans2 [] _ = []
-getNewTrans2 _ [] = []
-getNewTrans2 (x:xs) gsl = 
-  let newEndGroup = getNewEndGroup gsl (to (transition x))
-      a = EqTransition {
+-- vzdy zisti spravnu skupinu a opravi group id, vrati prechod
+fixEndStateGroupId :: [EqTransition] -> [(Int, [String])] -> [EqTransition]
+fixEndStateGroupId [] _ = []
+fixEndStateGroupId _ [] = []
+fixEndStateGroupId (x:xs) groupMap = 
+  let fixedEndGroup = getGroupId groupMap (to (transition x))
+      fixedTransition = EqTransition {
         transition = transition x,
-        endStateGroupId = newEndGroup
+        endStateGroupId = fixedEndGroup
       }   
-  in [a] ++ getNewTrans2 xs gsl 
+  in [fixedTransition] ++ fixEndStateGroupId xs groupMap 
 
-getNewTrans :: [[EqTransition]] -> [(Int, [String])] -> [[EqTransition]]
-getNewTrans [] _ = []
-getNewTrans _ [] = []
-getNewTrans (x:xs) gsl = [getNewTrans2 x gsl] ++ getNewTrans xs gsl 
+-- vrati zoznam prechodov s opravenymi koncovymi stavmi
+getTransitionsWithFixedEndGroup :: [[EqTransition]] -> [(Int, [String])] -> [[EqTransition]]
+getTransitionsWithFixedEndGroup [] _ = []
+getTransitionsWithFixedEndGroup _ [] = []
+getTransitionsWithFixedEndGroup (x:xs) groupMap = [fixEndStateGroupId x groupMap] ++ getTransitionsWithFixedEndGroup xs groupMap 
 
-
+-- opravi id koncovych stavov pre vsetky skupiny
 fixEndGroups :: [(Int, [[EqTransition]])] -> [(Int, [String])] -> [(Int, [[EqTransition]])]
 fixEndGroups [] _ = []
 fixEndGroups _ [] = []
-fixEndGroups (x:xs) gsl = [((fst x), getNewTrans (snd x) gsl)] ++ fixEndGroups xs gsl
+fixEndGroups (x:xs) groupMap = [((fst x), getTransitionsWithFixedEndGroup (snd x) groupMap)] ++ fixEndGroups xs groupMap
 
-findStates :: Int -> [(Int, [String])] -> [String]
-findStates _ [] = []
-findStates groupNumber (x:xs) =
+-- ******************** NOVA EKVIVALENCNA TRIEDA ************************
+
+-- vrati zoznam stavov pre danu skupinu
+getStatesInGroup :: Int -> [(Int, [String])] -> [String]
+getStatesInGroup _ [] = []
+getStatesInGroup groupNumber (x:xs) =
   if groupNumber == (fst x)
     then snd x
-    else findStates groupNumber xs
+    else getStatesInGroup groupNumber xs
 
-createEqGroups :: [(Int, [[EqTransition]])] -> [(Int, [String])] -> [EqGroup]
-createEqGroups [] _ = []
-createEqGroups _ [] = []
-createEqGroups (x:xs) gsl = 
+-- z vypoctov vytvori novy zoznam skupin v danej ekv. triede
+createEqGroupsFromTuples :: [(Int, [[EqTransition]])] -> [(Int, [String])] -> [EqGroup]
+createEqGroupsFromTuples [] _ = []
+createEqGroupsFromTuples _ [] = []
+createEqGroupsFromTuples (x:xs) groupMap = 
   [
     EqGroup {
         groupId = fst x,
         transitionList = concat (snd x),
-        stateList = findStates (fst x) gsl
+        stateList = getStatesInGroup (fst x) groupMap
     }
-  ] ++ createEqGroups xs gsl
+  ] ++ createEqGroupsFromTuples xs groupMap
 
+-- vytvori novu ekvivalencnu triedu z vypoctov jedneho kroku minimalizacie
 createNewEqClass :: [(Int, [[EqTransition]])] -> [(Int, [String])] -> EqClass
-createNewEqClass groups gsl = 
+createNewEqClass tuples groupMap = 
   EqClass {
-    groups = createEqGroups groups gsl
+    groups = createEqGroupsFromTuples tuples groupMap
   } 
 
-reduceEqClass :: EqClass -> [String] -> EqClass
-reduceEqClass eqClassI alphabet = 
-  let endStateGroupIdCheck = checkEndGroups (groups eqClassI) 
-      groupCount = length endStateGroupIdCheck
-      i = getCurrentTransitions (groups eqClassI)
-      -- ii = splitTransitions (groups eqClassI) groupStateList alphabet
-      ii = newTransitions i alphabet endStateGroupIdCheck
-      renamedGroups = renameGroups ii 1
-      newGSL = createNewGSL renamedGroups
-      fixedEndGroups = fixEndGroups renamedGroups newGSL
-      newEqClass = createNewEqClass fixedEndGroups newGSL
-  in 
-    if (newEqClass == eqClassI)
-      then newEqClass
-      else reduceEqClass newEqClass alphabet 
-    -- Test {
-      -- eqClass = newEqClass,
-      -- trans = i,
-      -- trans2 = fixedEndGroups,
-      -- groupCount = groupCount,
-      -- groupStateList = createGroupStateList (groups eqClassI),
-      -- groupStateList = newGSL,
-      -- zipped = []
-    -- }
+-- ******************** KONVERZIA NA DKA ****************************
 
+-- pre zoznam skupin vrati ich idcka
 getGroupNumbers :: [EqGroup] -> [String]
 getGroupNumbers [] = []
 getGroupNumbers (x:xs) = [show (groupId x)] ++ getGroupNumbers xs
 
+-- ak sa stav nachadza v danej skupine, tak vrati jej id
 findGroup :: String -> [EqGroup] -> String
 findGroup state (x:xs) =
   if state `elem` (stateList x)
     then show (groupId x)
     else findGroup state xs
 
-getStartGroup :: [EqGroup] -> [String] -> [String]
-getStartGroup [] _ = []
-getStartGroup _ [] = []
-getStartGroup groups (x:xs) = [findGroup x groups] ++ getStartGroup groups xs
+-- zisti v ktorej skupine su stavy
+getGroups :: [EqGroup] -> [String] -> [String]
+getGroups [] _ = []
+getGroups _ [] = []
+getGroups groups (x:xs) = [findGroup x groups] ++ getGroups groups xs
 
-iterateT :: Int -> [EqTransition] -> [Transition]
-iterateT _ [] = []
-iterateT num (x:xs) = 
+-- zoznam EqTransition skonvertuje na zoznam Transition
+convertEqTransitionListToTransitionsList :: Int -> [EqTransition] -> [Transition]
+convertEqTransitionListToTransitionsList _ [] = []
+convertEqTransitionListToTransitionsList num (x:xs) = 
   [
     Transition {
       from = show num,
       symbol = symbol (transition x),
       to = show (endStateGroupId x)
     }
-  ] ++ iterateT num xs
+  ] ++ convertEqTransitionListToTransitionsList num xs
 
 
+-- vrati vsetky prechody danej EqClass
 getNewTransitions :: [EqGroup] -> [Transition]
 getNewTransitions [] = []
-getNewTransitions (x:xs) = iterateT (groupId x) (transitionList x) ++ getNewTransitions xs
+getNewTransitions (x:xs) = convertEqTransitionListToTransitionsList (groupId x) (transitionList x) ++ getNewTransitions xs
 
+
+-- skonvertuje EqClass pouzivanu na vypocty na DKA ktory sa potom vypise
 convertEqClassToDKA :: EqClass -> DKA -> DKA
 convertEqClassToDKA eqClass oldDKA =
   let newStates = getGroupNumbers (groups eqClass)
-      newStart = sort (nub (getStartGroup (groups eqClass) (startStates oldDKA)))
-      newEnd = sort (nub (getStartGroup (groups eqClass) (endStates oldDKA)))
+      newStart = sort (nub (getGroups (groups eqClass) (startStates oldDKA)))
+      newEnd = sort (nub (getGroups (groups eqClass) (endStates oldDKA)))
       newTransitions = sort (nub (getNewTransitions (groups eqClass)))
   in DKA {
     allStates = newStates,
@@ -612,13 +559,34 @@ convertEqClassToDKA eqClass oldDKA =
     startStates = newStart,
     endStates = newEnd,
     transitions = newTransitions
-  }
--- TODO fix
-makeReducedDKA :: DKA -> DKA
-makeReducedDKA dka = 
-  let eqClass0 = createEqClass0 dka
-      eqClassMax = reduceEqClass eqClass0 (alphabet dka)
-  in convertEqClassToDKA eqClassMax dka    
+  }  
+
+-- ************************** MINIMALNY AUTOMAT *********************
+
+-- algoritmus minimalizacie z TIN, do i si ulozi aktualnu situaciu
+-- do ii potom zmenene prechody po 1 kroku algoritmu, kde sa skupiny rozdelia
+-- skupiny sa nasledne premenuju, opravia sa prechody, vytvori sa nova ekvivalencna trieda
+-- povodna a nova ekvivalencna trieda sa porovnaju, opakujeme pokial sa nebudu zhodovat
+createMinimalEqClass :: EqClass -> [String] -> EqClass
+createMinimalEqClass eqClass alphabet = 
+  let groupMap = getGroupMap (groups eqClass) 
+      i = convertGroupsToTuples (groups eqClass)
+      ii = splitTuples i alphabet groupMap
+      renamedTuples = renameTuples ii 1
+      newGroupMap = createNewGroupMap renamedTuples
+      fixedEndGroups = fixEndGroups renamedTuples newGroupMap
+      newEqClass = createNewEqClass fixedEndGroups newGroupMap
+  in 
+    if (newEqClass == eqClass)
+      then newEqClass
+      else createMinimalEqClass newEqClass alphabet 
+
+-- vypocita nulovu ekv. triedu, potom cyklom tu poslednu, a z nej vytvori minimalny DKA
+createMinimalDKA :: DKA -> DKA
+createMinimalDKA oldDKA = 
+  let eqClass0 = createEqClass0 oldDKA
+      eqClassMin = createMinimalEqClass eqClass0 (alphabet oldDKA)
+  in convertEqClassToDKA eqClassMin oldDKA    
 
 -- ******************************** MAIN *****************************
 main = do
@@ -635,7 +603,7 @@ main = do
         let switcher = args!!0
         case switcher of 
           "-i" -> printCustomDKA formattedInput
-          "-t" -> printDKA (makeReducedDKA (createFullyDefinedDKA formattedInput))
+          "-t" -> printDKA (createMinimalDKA (createFullyDefinedDKA formattedInput))
           _ -> error "Chybny prepinac"
         hClose handle
 
