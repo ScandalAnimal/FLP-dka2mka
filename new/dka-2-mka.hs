@@ -21,23 +21,23 @@ data Transition = Transition {
 
 -- vlastna reprezentacia DKA
 data DKA = DKA {
-  states :: [String],
+  allStates :: [String],
   alphabet :: [String],
   transitions :: [Transition],
-  start :: [String],
-  end :: [String]
+  startStates :: [String],
+  endStates :: [String]
 } deriving (Show)
 
 data EqTransition = EqTransition {
   transition :: Transition,
-  endGroup :: Int
+  endStateGroupId :: Int
 } deriving (Show, Eq)
 
 -- struktura pre jednu skupinu v eq triede
-data  EqGroup = EqGroup {
-  number :: Int,
+data EqGroup = EqGroup {
+  groupId :: Int,
   stateList :: [String],
-  transList :: [EqTransition]
+  transitionList :: [EqTransition]
 } deriving (Show, Eq)
 
 -- struktura pre eq triedu
@@ -81,10 +81,12 @@ customSplit :: Eq a => a -> [a] -> [[a]]
 customSplit d [] = []
 customSplit d s = x : customSplit d (drop 1 y) where (x,y) = span (/= d) s
 
+-- z abecedy v jednom stringu spravi list
 parseAlphabet :: [String] -> [String]
 parseAlphabet [x] = [(customSplit ',' x)!!1] 
 parseAlphabet (x:xs) = [(customSplit ',' x)!!1] ++ parseAlphabet xs 
 
+-- z prechodu v stringu spravi objekt
 parseTransition :: [String] -> Transition
 parseTransition x = Transition {
   from = x!!0,
@@ -92,18 +94,20 @@ parseTransition x = Transition {
   to = x!!2
 }
 
-parseTransitions :: [String] -> [Transition]
-parseTransitions [] = []
-parseTransitions [x] = [parseTransition (customSplit ',' x)]
-parseTransitions (x:xs) = [parseTransition (customSplit ',' x)] ++ parseTransitions xs
+-- zaradom prechadza vsetky prechody a po jednom ich parsuje
+parseTransitionList :: [String] -> [Transition]
+parseTransitionList [] = []
+parseTransitionList [x] = [parseTransition (customSplit ',' x)]
+parseTransitionList (x:xs) = [parseTransition (customSplit ',' x)] ++ parseTransitionList xs
 
+-- zo vstupu vo forme stringu vytvori objekt DKA
 formatInput :: [String] -> DKA
 formatInput input = DKA {
-  states = (customSplit ',' (input!!0)),
+  allStates = (customSplit ',' (input!!0)),
   alphabet = (sort (nub (parseAlphabet (drop 3 input)))),
-  transitions = parseTransitions (drop 3 input),
-  start = (customSplit ',' (input!!1)),
-  end = (customSplit ',' (input!!2))
+  transitions = parseTransitionList (drop 3 input),
+  startStates = (customSplit ',' (input!!1)),
+  endStates = (customSplit ',' (input!!2))
 }
 
 -- ****************** VYPIS *****************************
@@ -120,26 +124,27 @@ printTransition transition = do
 printCustomDKA :: DKA -> IO ()
 printCustomDKA dka = do
   putStrLn "Stavy: "
-  putStrLn (intercalate "," (states dka))
+  putStrLn (intercalate "," (allStates dka))
   putStrLn "Abeceda: "
   putStrLn (intercalate "," (alphabet dka))
   putStrLn "Prechody: "
   mapM_ printTransition (transitions dka)
   putStrLn "Startovaci stav: "
-  putStrLn (intercalate "," (start dka))
+  putStrLn (intercalate "," (startStates dka))
   putStrLn "Koncove stavy: "
-  putStrLn (intercalate "," (end dka))
+  putStrLn (intercalate "," (endStates dka))
   
 -- prepinac -t
 printDKA :: DKA -> IO ()
 printDKA dka = do
-  putStrLn (intercalate "," (states dka))
-  putStrLn (intercalate "," (start dka))
-  putStrLn (intercalate "," (end dka))
+  putStrLn (intercalate "," (allStates dka))
+  putStrLn (intercalate "," (startStates dka))
+  putStrLn (intercalate "," (endStates dka))
   mapM_ printTransition (transitions dka)  
 
 -- ****************** ELIMINACIA NEDOSIAHNUTELNYCH STAVOV ***********
 
+-- pre dany stav x najde vsetky stavy do ktorych su prechody
 getReachableStatesFromOneState :: [String] -> [Transition] -> [String]
 getReachableStatesFromOneState [x] transitions = 
   foldr (\transition reachableStates -> 
@@ -147,38 +152,45 @@ getReachableStatesFromOneState [x] transitions =
       then [to transition] ++ reachableStates
       else reachableStates) [x] transitions
 
-compareReachableStateGroups :: [String] -> [String] -> [Transition] -> [String]
-compareReachableStateGroups si sii transitions =
-  if (si == sii)
-    then sii
-    else compareReachableStateGroups sii (sort (nub (getReachableStatesFromSi sii transitions))) transitions
-
+-- cyklus - pre kazdy stav z Si najde vsetky stavy do ktorych sa vie dostat
 getReachableStatesFromSi :: [String] -> [Transition] -> [String]
 getReachableStatesFromSi [] _ = []
-getReachableStatesFromSi [x] transitions = getReachableStatesFromOneState [x] transitions
 getReachableStatesFromSi (x:xs) transitions = (getReachableStatesFromOneState [x] transitions) ++ getReachableStatesFromSi xs transitions
 
+-- porovna zoznamy Si a Sii
+compareReachableStateLists :: [String] -> [String] -> [Transition] -> [String]
+compareReachableStateLists si sii transitions =
+  if (si == sii)
+    then sii
+    else compareReachableStateLists sii (sort (nub (getReachableStatesFromSi sii transitions))) transitions
+
+-- podla algoritmu z TIN, do Si vlozime pociatocne stavy,
+-- do Sii vlozime stavy do ktorych sa vieme dostat z pociatocnych
+-- opakujeme dokym Si != Sii
 createReachableStates :: [String] -> [Transition] -> [String]
-createReachableStates start transitions = 
-  let si = start
+createReachableStates startStates transitions = 
+  let si = startStates
       sii = sort (nub (getReachableStatesFromSi si transitions))
-  in compareReachableStateGroups si sii transitions
+  in compareReachableStateLists si sii transitions
 
+-- vyfiltruje koncove stavy zo zoznamu vsetkych dostupnych stavov
 createReachableEndStates :: [String] -> [String] -> [String]
-createReachableEndStates reachables ends = sort (intersect reachables ends)
+createReachableEndStates reachables endStatess = sort (intersect reachables endStatess)
 
--- ****************** ELIMINACIA NEDOSIAHNUTELNYCH PRECHODOV **********
+-- -- ****************** ELIMINACIA NEDOSIAHNUTELNYCH PRECHODOV **********
 
+-- zmaze tie prechody ktore vedu do nedostupnych stavov, alebo z nich vychadzaju
 createReachableTransitions :: [Transition] -> [String] -> [Transition]
 createReachableTransitions _ [] = []
 createReachableTransitions [] _ = []
-createReachableTransitions (x:xs) states =
-  if ((from x) `elem` states) && ((to x) `elem` states)
-    then [x] ++ createReachableTransitions xs states
-    else createReachableTransitions xs states
+createReachableTransitions (x:xs) allStates =
+  if ((from x) `elem` allStates) && ((to x) `elem` allStates)
+    then [x] ++ createReachableTransitions xs allStates
+    else createReachableTransitions xs allStates
 
--- ****************** PRECHODY DO SINK *****************************
+-- -- ****************** PRECHODY DO SINK *****************************
 
+-- vlozi prechod zo "sink" do "sink"
 createSinkTransition :: String -> String -> Transition
 createSinkTransition state symbolFromAlphabet = 
   Transition {
@@ -187,6 +199,7 @@ createSinkTransition state symbolFromAlphabet =
     to = sink
   }
 
+-- pre dany stav a symbol vlozi prechody do "sink" stavu
 getSinkTransitionsForStateAndSymbol :: String -> [Transition] -> String -> [Transition]
 getSinkTransitionsForStateAndSymbol state [] symbolFromAlphabet = [createSinkTransition state symbolFromAlphabet]
 getSinkTransitionsForStateAndSymbol state (x:xs) symbolFromAlphabet =
@@ -194,20 +207,24 @@ getSinkTransitionsForStateAndSymbol state (x:xs) symbolFromAlphabet =
     then []
     else getSinkTransitionsForStateAndSymbol state xs symbolFromAlphabet
 
+-- cyklus pre jeden stav a vsetky symboly na pridanie prechodov do "sink" stavu
 getSinkTransitionsForState :: String -> [Transition] -> [String] -> [Transition]
 getSinkTransitionsForState state transitions [] = []
 getSinkTransitionsForState state transitions (x:xs) = getSinkTransitionsForStateAndSymbol state transitions x ++ getSinkTransitionsForState state transitions xs
 
+-- cyklus cez vsetky stavy, prida prechody do "sink" stavu aby bol automat kompletny
 addSinkTransitions :: [String] -> [Transition] -> [String] -> [Transition]
 addSinkTransitions [] transitions alphabet = []
 addSinkTransitions (x:xs) transitions alphabet = getSinkTransitionsForState x transitions alphabet ++ addSinkTransitions xs transitions alphabet
 
+-- ak boli vlozene nejake prechody do "sink" stavu, tak ho pridame aj do zoznamu stavov
 addSinkState :: Int -> [String]
 addSinkState sinkTransitions = 
   if sinkTransitions > 0
-    then ["sink"]
+    then [sink]
     else []
 
+-- vlozi prechody "sink" do "sink"
 addSinkToSinkTransitions :: [String] -> [Transition]
 addSinkToSinkTransitions [] = []
 addSinkToSinkTransitions (x:xs) = [createSinkTransition sink x] ++ (addSinkToSinkTransitions xs)
@@ -215,16 +232,16 @@ addSinkToSinkTransitions (x:xs) = [createSinkTransition sink x] ++ (addSinkToSin
 
 -- ****************** UPLNY AUTOMAT *****************************
 
-makeFullyDefinedDKA :: DKA -> DKA
-makeFullyDefinedDKA dka = 
-  let reachableStates = createReachableStates (start dka) (transitions dka)
+createFullyDefinedDKA :: DKA -> DKA
+createFullyDefinedDKA dka = 
+  let reachableStates = createReachableStates (startStates dka) (transitions dka)
       reachableTransitions = createReachableTransitions (transitions dka) reachableStates
       sinkTransitions = addSinkTransitions reachableStates reachableTransitions (alphabet dka)
       sinkToSinkTransitions = addSinkToSinkTransitions (alphabet dka)
   in DKA {
-      states = reachableStates ++ (addSinkState (length sinkTransitions)),
-      start = start dka,
-      end = createReachableEndStates reachableStates (end dka),
+      allStates = reachableStates ++ (addSinkState (length sinkTransitions)), -- vsetky stavy + sink ak bol potrebny
+      startStates = startStates dka,
+      endStates = createReachableEndStates reachableStates (endStates dka),
       transitions = reachableTransitions ++ sinkTransitions ++ sinkToSinkTransitions,
       alphabet = alphabet dka
     }
@@ -245,13 +262,13 @@ printEqTrans :: EqTransition -> IO ()
 printEqTrans eq = do
   putStrLn ("    " ++ (from (transition eq)) ++ "," 
     ++ (symbol (transition eq)) ++ "," ++ (to (transition eq)) ++ "("
-    ++ (show (endGroup eq)) ++ ")")
+    ++ (show (endStateGroupId eq)) ++ ")")
 
 printEqGroup :: EqGroup -> IO ()
 printEqGroup eq = do
-  putStrLn ("group " ++ (show (number eq)))
+  putStrLn ("group " ++ (show (groupId eq)))
   putStrLn (intercalate "," (stateList eq))
-  mapM_ printEqTrans (transList eq)
+  mapM_ printEqTrans (transitionList eq)
 
 printEqTrans2 :: [EqTransition] -> IO ()
 printEqTrans2 eq = do
@@ -290,16 +307,16 @@ printEqClass eq = do
 
 createEqTransition :: Transition -> DKA -> EqTransition
 createEqTransition trans dka = 
-  if (to trans) `elem` (end dka)
+  if (to trans) `elem` (endStates dka)
     then 
       EqTransition {
         transition = trans,
-        endGroup = 1
+        endStateGroupId = 1
       }
     else
       EqTransition {
         transition = trans,
-        endGroup = 2
+        endStateGroupId = 2
       }  
 
 createEqTransitions :: String -> DKA -> [EqTransition]
@@ -313,18 +330,18 @@ createEqTransitions state dka =
 getEndEqTransitions :: DKA -> [EqTransition]
 getEndEqTransitions dka =
   foldr (\state eqStates -> 
-    if (state) `elem` (end dka)
+    if (state) `elem` (endStates dka)
       then (createEqTransitions state dka) ++ eqStates
       else eqStates) 
-  [] (states dka)
+  [] (allStates dka)
 
 getNotEndEqTransitions :: DKA -> [EqTransition]
 getNotEndEqTransitions dka =
   foldr (\state eqStates -> 
-    if (state) `elem` (end dka)
+    if (state) `elem` (endStates dka)
       then eqStates
       else (createEqTransitions state dka) ++ eqStates) 
-  [] (states dka)
+  [] (allStates dka)
 
 getStateListFromTransitions :: [EqTransition] -> [String]
 getStateListFromTransitions [] = []
@@ -335,16 +352,16 @@ createEqGroup num transitions =
   let stateList = sort (nub (getStateListFromTransitions transitions))
   in
   EqGroup {
-    number = num,
+    groupId = num,
     stateList = stateList,
-    transList = transitions
+    transitionList = transitions
   }
 
 createEqGroups0 :: DKA -> [EqGroup]
 createEqGroups0 dka = 
-  let endGroup = createEqGroup 1 (getEndEqTransitions dka)
+  let endStateGroupId = createEqGroup 1 (getEndEqTransitions dka)
       notEndGroup = createEqGroup 2 (getNotEndEqTransitions dka)
-  in [endGroup, notEndGroup]
+  in [endStateGroupId, notEndGroup]
 
 -- ekvivalencna trieda 0 - ma dve skupiny stavov: 1 su koncove a 2 nekoncove    
 createEqClass0 :: DKA -> EqClass
@@ -357,19 +374,19 @@ createEqClass0 dka =
 
 getEndGroups :: [EqTransition] -> [Int]
 getEndGroups [] = []
-getEndGroups (x:xs) = [endGroup x] ++ getEndGroups xs
+getEndGroups (x:xs) = [endStateGroupId x] ++ getEndGroups xs
 
 checkEndGroups :: [EqGroup] -> [(Int, [Int])]
 checkEndGroups [] = []
-checkEndGroups (x:xs) = [(number x, sort (nub (getEndGroups (transList x))))] ++ checkEndGroups xs
+checkEndGroups (x:xs) = [(groupId x, sort (nub (getEndGroups (transitionList x))))] ++ checkEndGroups xs
 
 getCurrentTransitions :: [EqGroup] -> [(Int, [[EqTransition]])]
 getCurrentTransitions [] = []
-getCurrentTransitions (x:xs) = [((number x), [(transList x)])] ++ getCurrentTransitions xs
+getCurrentTransitions (x:xs) = [((groupId x), [(transitionList x)])] ++ getCurrentTransitions xs
 
 createGroupStateList :: [EqGroup] -> [(Int, [String])]
 createGroupStateList [] = []
-createGroupStateList (x:xs) = [((number x), (stateList x))] ++ createGroupStateList xs
+createGroupStateList (x:xs) = [((groupId x), (stateList x))] ++ createGroupStateList xs
 
 countTrans2 :: [EqTransition] -> String -> Int
 countTrans2 [] _ = 0
@@ -385,17 +402,17 @@ countTrans (x:xs) sym = [countTrans2 x sym] ++ countTrans xs sym
 findAll :: Int -> [EqTransition] -> String -> [String]
 findAll _ [] _ = []
 findAll groupNumber (x:xs) sym = 
-  if ((symbol (transition x)) == sym) && ((endGroup x) == groupNumber)
+  if ((symbol (transition x)) == sym) && ((endStateGroupId x) == groupNumber)
     then [from (transition x)] ++ findAll groupNumber xs sym
     else findAll groupNumber xs sym
 
 getTrans :: [String] -> [EqTransition] -> [EqTransition]
 getTrans [] _ = []
 getTrans _ [] = []
-getTrans states (x:xs) =
-  if (from (transition x) `elem` states)
-    then [x] ++ getTrans states xs
-    else getTrans states xs
+getTrans allStates (x:xs) =
+  if (from (transition x) `elem` allStates)
+    then [x] ++ getTrans allStates xs
+    else getTrans allStates xs
 
 
 countNew :: [Int] -> [EqTransition] -> String -> [[EqTransition]]
@@ -445,11 +462,11 @@ newTransitions :: [(Int, [[EqTransition]])] -> [String] -> [(Int, [Int])] -> [(I
 newTransitions [] _ _ = []
 newTransitions _ [] _ = []
 newTransitions _ _ [] = []
-newTransitions (x:xs) alphabet endGroupCheck = 
-  let groupCheckList = getGroupCheckList endGroupCheck (fst x) -- ["I","II"]
+newTransitions (x:xs) alphabet endStateGroupIdCheck = 
+  let groupCheckList = getGroupCheckList endStateGroupIdCheck (fst x) -- ["I","II"]
       a = filter (not . null) (newTransitions2 (snd x) alphabet groupCheckList)
-  in [((fst x), a)] ++ newTransitions xs alphabet endGroupCheck
-  -- in a ++ newTransitions xs alphabet endGroupCheck
+  in [((fst x), a)] ++ newTransitions xs alphabet endStateGroupIdCheck
+  -- in a ++ newTransitions xs alphabet endStateGroupIdCheck
 
 renGroups :: Int -> [[EqTransition]] -> [(Int, [[EqTransition]])]
 renGroups _ [] = []
@@ -487,7 +504,7 @@ getNewTrans2 (x:xs) gsl =
   let newEndGroup = getNewEndGroup gsl (to (transition x))
       a = EqTransition {
         transition = transition x,
-        endGroup = newEndGroup
+        endStateGroupId = newEndGroup
       }   
   in [a] ++ getNewTrans2 xs gsl 
 
@@ -515,8 +532,8 @@ createEqGroups _ [] = []
 createEqGroups (x:xs) gsl = 
   [
     EqGroup {
-        number = fst x,
-        transList = concat (snd x),
+        groupId = fst x,
+        transitionList = concat (snd x),
         stateList = findStates (fst x) gsl
     }
   ] ++ createEqGroups xs gsl
@@ -529,11 +546,11 @@ createNewEqClass groups gsl =
 
 reduceEqClass :: EqClass -> [String] -> EqClass
 reduceEqClass eqClassI alphabet = 
-  let endGroupCheck = checkEndGroups (groups eqClassI) 
-      groupCount = length endGroupCheck
+  let endStateGroupIdCheck = checkEndGroups (groups eqClassI) 
+      groupCount = length endStateGroupIdCheck
       i = getCurrentTransitions (groups eqClassI)
       -- ii = splitTransitions (groups eqClassI) groupStateList alphabet
-      ii = newTransitions i alphabet endGroupCheck
+      ii = newTransitions i alphabet endStateGroupIdCheck
       renamedGroups = renameGroups ii 1
       newGSL = createNewGSL renamedGroups
       fixedEndGroups = fixEndGroups renamedGroups newGSL
@@ -554,12 +571,12 @@ reduceEqClass eqClassI alphabet =
 
 getGroupNumbers :: [EqGroup] -> [String]
 getGroupNumbers [] = []
-getGroupNumbers (x:xs) = [show (number x)] ++ getGroupNumbers xs
+getGroupNumbers (x:xs) = [show (groupId x)] ++ getGroupNumbers xs
 
 findGroup :: String -> [EqGroup] -> String
 findGroup state (x:xs) =
   if state `elem` (stateList x)
-    then show (number x)
+    then show (groupId x)
     else findGroup state xs
 
 getStartGroup :: [EqGroup] -> [String] -> [String]
@@ -574,32 +591,34 @@ iterateT num (x:xs) =
     Transition {
       from = show num,
       symbol = symbol (transition x),
-      to = show (endGroup x)
+      to = show (endStateGroupId x)
     }
   ] ++ iterateT num xs
 
 
 getNewTransitions :: [EqGroup] -> [Transition]
 getNewTransitions [] = []
-getNewTransitions (x:xs) = iterateT (number x) (transList x) ++ getNewTransitions xs
+getNewTransitions (x:xs) = iterateT (groupId x) (transitionList x) ++ getNewTransitions xs
 
+convertEqClassToDKA :: EqClass -> DKA -> DKA
+convertEqClassToDKA eqClass oldDKA =
+  let newStates = getGroupNumbers (groups eqClass)
+      newStart = sort (nub (getStartGroup (groups eqClass) (startStates oldDKA)))
+      newEnd = sort (nub (getStartGroup (groups eqClass) (endStates oldDKA)))
+      newTransitions = sort (nub (getNewTransitions (groups eqClass)))
+  in DKA {
+    allStates = newStates,
+    alphabet = alphabet oldDKA,
+    startStates = newStart,
+    endStates = newEnd,
+    transitions = newTransitions
+  }
 -- TODO fix
 makeReducedDKA :: DKA -> DKA
 makeReducedDKA dka = 
   let eqClass0 = createEqClass0 dka
       eqClassMax = reduceEqClass eqClass0 (alphabet dka)
-      newStates = getGroupNumbers (groups eqClassMax)
-      newStart = sort (nub (getStartGroup (groups eqClassMax) (start dka)))
-      newEnd = sort (nub (getStartGroup (groups eqClassMax) (end dka)))
-      newTrans = sort (nub (getNewTransitions (groups eqClassMax)))
-  -- in  eqClassMax
-  in DKA {
-    states = newStates,
-    alphabet = alphabet dka,
-    start = newStart,
-    end = newEnd,
-    transitions = newTrans
-  }
+  in convertEqClassToDKA eqClassMax dka    
 
 -- ******************************** MAIN *****************************
 main = do
@@ -616,8 +635,7 @@ main = do
         let switcher = args!!0
         case switcher of 
           "-i" -> printCustomDKA formattedInput
-        --TODO potom zmenit        
-          "-t" -> printDKA (makeReducedDKA (makeFullyDefinedDKA formattedInput))
+          "-t" -> printDKA (makeReducedDKA (createFullyDefinedDKA formattedInput))
           _ -> error "Chybny prepinac"
         hClose handle
 
