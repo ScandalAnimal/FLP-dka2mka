@@ -17,7 +17,7 @@ data Transition = Transition {
   from :: String,
   symbol :: String,
   to :: String
-} deriving (Show, Eq)
+} deriving (Show, Eq, Ord)
 
 -- vlastna reprezentacia DKA
 data DKA = DKA {
@@ -27,12 +27,6 @@ data DKA = DKA {
   start :: [String],
   end :: [String]
 } deriving (Show)
-
--- struktura reprezentuje jeden stav v eq skupine
--- data EqState = EqState {
-  -- name :: String,
-  -- trans :: [(String, String, String)] -- prechod (symbol, koncovy stav, cislo skupiny koncoveho stavu)
--- } deriving (Show)
 
 data EqTransition = EqTransition {
   transition :: Transition,
@@ -44,12 +38,12 @@ data  EqGroup = EqGroup {
   number :: Int,
   stateList :: [String],
   transList :: [EqTransition]
-} deriving (Show)
+} deriving (Show, Eq)
 
 -- struktura pre eq triedu
 data EqClass = EqClass {
   groups :: [EqGroup]
-} deriving (Show)
+} deriving (Show, Eq)
 
 -- reprezentacia sink stavu
 sink = "sink"
@@ -281,18 +275,18 @@ printZipped eq = do
   mapM_ printEqTrans (snd eq)
 
 
-printEqClass :: Test -> IO ()
+printEqClass :: EqClass -> IO ()
 printEqClass eq = do
-  putStrLn ("GSL: ")
-  mapM_ printGSL (groupStateList eq)
+  -- putStrLn ("GSL: ")
+  -- mapM_ printGSL (groupStateList eq)
   putStrLn ("GROUPS: ")
-  mapM_ printEqGroup (groups (eqClass eq))
-  putStrLn ("pocet skupin: " ++ show (groupCount eq))
-  mapM_ printTestTrans (trans eq)
-  putStrLn ("new")
-  mapM_ printTestTrans (trans2 eq)
-  putStrLn ("zipped")
-  mapM_ printZipped (zipped eq)
+  mapM_ printEqGroup (groups eq)
+  -- putStrLn ("pocet skupin: " ++ show (groupCount eq))
+  -- mapM_ printTestTrans (trans eq)
+  -- putStrLn ("new")
+  -- mapM_ printTestTrans (trans2 eq)
+  -- putStrLn ("zipped")
+  -- mapM_ printZipped (zipped eq)
 
 createEqTransition :: Transition -> DKA -> EqTransition
 createEqTransition trans dka = 
@@ -368,59 +362,6 @@ getEndGroups (x:xs) = [endGroup x] ++ getEndGroups xs
 checkEndGroups :: [EqGroup] -> [(Int, [Int])]
 checkEndGroups [] = []
 checkEndGroups (x:xs) = [(number x, sort (nub (getEndGroups (transList x))))] ++ checkEndGroups xs
-
--- getCorrectGroup :: String -> [EqGroup] -> EqGroup
--- getCorrectGroup num (x:xs) =
---   if num == (number x)
---     then x
---     else getCorrectGroup num xs
-
--- getGroupTransition :: String -> [EqTransition] -> [EqTransition]
--- getGroupTransition _ [] = []
--- getGroupTransition num (x:xs) = 
---   if num == (endGroup x)
---     then [x] ++ getGroupTransition num xs
---     else getGroupTransition num xs
-
--- getGroupTransitions :: String -> [String] -> [EqTransition] -> [[EqTransition]]
--- getGroupTransitions _ _ [] = []
--- getGroupTransitions _ [] _ = []
--- getGroupTransitions f (x:xs) trans = [getGroupTransition x trans] ++ getGroupTransitions f xs trans 
-
--- splitTransitions :: [(String, [String])] -> [EqGroup]-> [(String, [[EqTransition]])]
--- splitTransitions [] _ = []
--- splitTransitions _ [] = []
--- splitTransitions (x:xs) groups = 
---   let correctGroup = getCorrectGroup (fst x) groups
---       groupTransitions = getGroupTransitions (fst x) (snd x) (transList correctGroup)
---   in [(fst x, groupTransitions)] ++ (splitTransitions xs groups)
-
--- transitionsWithSymbol :: String -> [[EqTransition]] -> [EqTransition]
--- transitionsWithSymbol _ [] = []
--- transitionsWithSymbol symbol (x:xs) =
---   if symbol == (symbol (transition x))
---     then [x] ++ transitionsWithSymbol symbol xs
---     else transitionsWithSymbol symbol xs
-
--- splitTransitionsForGroup :: [[EqTransition]] -> [(String, [String])] -> [String] -> [[EqTransition]]
--- splitTransitionsForGroup [] _ _ = []
--- splitTransitionsForGroup _ [] _ = []
--- splitTransitionsForGroup _ _ [] = []
--- splitTransitionsForGroup transList groupStateList (x:xs) = 
---   let trans = transitionsWithSymbol x transList
---       endGroups = sort (nub (getEndGroups trans))
---   in
---     if (length endGroups) == 1
---       then splitTransitionsForGroup transList groupStateList xs
---       else 
-
-
--- splitTransitions :: [EqGroup] -> [(String, [String])] -> [String] -> [(String, [[EqTransition]])]
--- splitTransitions [] _ _ = []
--- splitTransitions _ [] _ = []
--- splitTransitions _ _ [] = []
--- splitTransitions (x:xs) groupStateList alphabet = splitTransitionsForGroup [(transList x)] groupStateList alphabet ++ splitTransitions xs groupStateList alphabet
-
 
 getCurrentTransitions :: [EqGroup] -> [(Int, [[EqTransition]])]
 getCurrentTransitions [] = []
@@ -510,10 +451,6 @@ newTransitions (x:xs) alphabet endGroupCheck =
   in [((fst x), a)] ++ newTransitions xs alphabet endGroupCheck
   -- in a ++ newTransitions xs alphabet endGroupCheck
 
-  -- if (length (snd x)) > alphabetLength
-    -- then newTransitions xs alphabetLength
-    -- else [x] ++ newTransitions xs alphabetLength
-
 renGroups :: Int -> [[EqTransition]] -> [(Int, [[EqTransition]])]
 renGroups _ [] = []
 renGroups i (x:xs) = [(i, [x])] ++ renGroups (i+1) xs
@@ -565,8 +502,32 @@ fixEndGroups [] _ = []
 fixEndGroups _ [] = []
 fixEndGroups (x:xs) gsl = [((fst x), getNewTrans (snd x) gsl)] ++ fixEndGroups xs gsl
 
+findStates :: Int -> [(Int, [String])] -> [String]
+findStates _ [] = []
+findStates groupNumber (x:xs) =
+  if groupNumber == (fst x)
+    then snd x
+    else findStates groupNumber xs
 
-reduceEqClass :: EqClass -> [String] -> Test
+createEqGroups :: [(Int, [[EqTransition]])] -> [(Int, [String])] -> [EqGroup]
+createEqGroups [] _ = []
+createEqGroups _ [] = []
+createEqGroups (x:xs) gsl = 
+  [
+    EqGroup {
+        number = fst x,
+        transList = concat (snd x),
+        stateList = findStates (fst x) gsl
+    }
+  ] ++ createEqGroups xs gsl
+
+createNewEqClass :: [(Int, [[EqTransition]])] -> [(Int, [String])] -> EqClass
+createNewEqClass groups gsl = 
+  EqClass {
+    groups = createEqGroups groups gsl
+  } 
+
+reduceEqClass :: EqClass -> [String] -> EqClass
 reduceEqClass eqClassI alphabet = 
   let endGroupCheck = checkEndGroups (groups eqClassI) 
       groupCount = length endGroupCheck
@@ -576,30 +537,69 @@ reduceEqClass eqClassI alphabet =
       renamedGroups = renameGroups ii 1
       newGSL = createNewGSL renamedGroups
       fixedEndGroups = fixEndGroups renamedGroups newGSL
+      newEqClass = createNewEqClass fixedEndGroups newGSL
   in 
-    Test {
-      eqClass = eqClassI,
-      trans = i,
-      trans2 = fixedEndGroups,
-      groupCount = groupCount,
+    if (newEqClass == eqClassI)
+      then newEqClass
+      else reduceEqClass newEqClass alphabet 
+    -- Test {
+      -- eqClass = newEqClass,
+      -- trans = i,
+      -- trans2 = fixedEndGroups,
+      -- groupCount = groupCount,
       -- groupStateList = createGroupStateList (groups eqClassI),
-      groupStateList = newGSL,
-      zipped = []
+      -- groupStateList = newGSL,
+      -- zipped = []
+    -- }
+
+getGroupNumbers :: [EqGroup] -> [String]
+getGroupNumbers [] = []
+getGroupNumbers (x:xs) = [show (number x)] ++ getGroupNumbers xs
+
+findGroup :: String -> [EqGroup] -> String
+findGroup state (x:xs) =
+  if state `elem` (stateList x)
+    then show (number x)
+    else findGroup state xs
+
+getStartGroup :: [EqGroup] -> [String] -> [String]
+getStartGroup [] _ = []
+getStartGroup _ [] = []
+getStartGroup groups (x:xs) = [findGroup x groups] ++ getStartGroup groups xs
+
+iterateT :: Int -> [EqTransition] -> [Transition]
+iterateT _ [] = []
+iterateT num (x:xs) = 
+  [
+    Transition {
+      from = show num,
+      symbol = symbol (transition x),
+      to = show (endGroup x)
     }
+  ] ++ iterateT num xs
+
+
+getNewTransitions :: [EqGroup] -> [Transition]
+getNewTransitions [] = []
+getNewTransitions (x:xs) = iterateT (number x) (transList x) ++ getNewTransitions xs
 
 -- TODO fix
-makeReducedDKA :: DKA -> Test
+makeReducedDKA :: DKA -> DKA
 makeReducedDKA dka = 
   let eqClass0 = createEqClass0 dka
       eqClassMax = reduceEqClass eqClass0 (alphabet dka)
-  in  eqClassMax
-  -- in DKA {
-  --   states = states dka,
-  --   start = start dka,
-  --   end = end dka,
-  --   transitions = transitions dka,
-  --   alphabet = alphabet dka
-  -- }
+      newStates = getGroupNumbers (groups eqClassMax)
+      newStart = sort (nub (getStartGroup (groups eqClassMax) (start dka)))
+      newEnd = sort (nub (getStartGroup (groups eqClassMax) (end dka)))
+      newTrans = sort (nub (getNewTransitions (groups eqClassMax)))
+  -- in  eqClassMax
+  in DKA {
+    states = newStates,
+    alphabet = alphabet dka,
+    start = newStart,
+    end = newEnd,
+    transitions = newTrans
+  }
 
 -- ******************************** MAIN *****************************
 main = do
@@ -617,7 +617,7 @@ main = do
         case switcher of 
           "-i" -> printCustomDKA formattedInput
         --TODO potom zmenit        
-          "-t" -> printEqClass (makeReducedDKA (makeFullyDefinedDKA formattedInput))
+          "-t" -> printDKA (makeReducedDKA (makeFullyDefinedDKA formattedInput))
           _ -> error "Chybny prepinac"
         hClose handle
 
