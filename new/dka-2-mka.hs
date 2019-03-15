@@ -7,6 +7,8 @@ import System.IO
 import Data.List
 import Data.List.Split
 import Data.Char
+import Data.List (sortBy)
+import Data.Function (on)
 
 -- ****************** DATOVE TYPY *****************************
 
@@ -549,7 +551,7 @@ getNewTransitions (x:xs) = convertEqTransitionListToTransitionsList (groupId x) 
 -- skonvertuje EqClass pouzivanu na vypocty na DKA ktory sa potom vypise
 convertEqClassToDKA :: EqClass -> DKA -> DKA
 convertEqClassToDKA eqClass oldDKA =
-  let newStates = getGroupNumbers (groups eqClass)
+  let newStates = sort (nub (getGroupNumbers (groups eqClass)))
       newStart = sort (nub (getGroups (groups eqClass) (startStates oldDKA)))
       newEnd = sort (nub (getGroups (groups eqClass) (endStates oldDKA)))
       newTransitions = sort (nub (getNewTransitions (groups eqClass)))
@@ -560,6 +562,77 @@ convertEqClassToDKA eqClass oldDKA =
     endStates = newEnd,
     transitions = newTransitions
   }  
+
+-- ****************** PREMENOVANIE PRED VYPISOM ***********************
+
+-- funkcia zoradi list dvojic podla fst
+-- https://stackoverflow.com/questions/30380697/sort-tuples-by-one-of-their-elements-in-haskell
+customTupleSort :: Ord a => [(a, b)] -> [(a, b)]
+customTupleSort = sortBy (compare `on` fst)
+
+-- vytvori zoznam dvojic aby sme vedeli ktore stavy su v ktorej skupine
+generateTuple :: EqGroup -> [(String, Int)]
+generateTuple group = 
+  foldr (\state res ->
+    [(state, (groupId group))] ++ res) 
+  [] (stateList group)
+
+-- loop cez vsetky skupiny
+generateTuples :: [EqGroup] -> [(String, Int)]
+generateTuples [] = []
+generateTuples (x:xs) = generateTuple x ++ generateTuples xs 
+
+-- vytvori zoznam dvojic, ktory urcuje ako budeme premenovat prechody
+createConversionList :: [(String, Int)] -> [Int] -> Int -> [(Int, Int)]
+createConversionList [] _ _ = []
+createConversionList (x:xs) used cnt = 
+  if ((snd x) `elem` used)
+    then createConversionList xs used cnt
+    else [((snd x), cnt)] ++ createConversionList xs (used ++ [snd x]) (cnt + 1)
+
+-- premenuje prechody
+createRenamedEqTransitions :: [EqTransition] -> [(Int, Int)] -> [EqTransition]
+createRenamedEqTransitions [] _ = []
+createRenamedEqTransitions _ [] = []
+createRenamedEqTransitions (x:xs) conversionList =
+  let maybeNewId = lookup (endStateGroupId x) conversionList
+  in 
+    case maybeNewId of
+        Just n  ->  [
+                      EqTransition {
+                        transition = transition x,
+                        endStateGroupId = n
+                      }
+                    ] ++ createRenamedEqTransitions xs conversionList
+        Nothing -> error ("Chyba v prevode")
+
+-- premenuje cisla skupin, tym padom cisla stavov
+createRenamedEqGroups :: [EqGroup] -> [(Int, Int)] -> [EqGroup]
+createRenamedEqGroups [] _ = []
+createRenamedEqGroups _ [] = []
+createRenamedEqGroups (x:xs) conversionList = 
+  let maybeNewId = lookup (groupId x) conversionList
+  in 
+    case maybeNewId of
+        Just n  ->  [
+                      EqGroup {
+                        groupId = n,
+                        stateList = stateList x,
+                        transitionList = createRenamedEqTransitions (transitionList x) conversionList
+                      }
+                    ] ++ createRenamedEqGroups xs conversionList
+        Nothing -> error ("Chyba v prevode")
+
+-- konvertuje EqClass tak aby mala spravne premenovane stavy a prechody
+createEqClassWithRenamedStates :: EqClass -> EqClass
+createEqClassWithRenamedStates eqClass =
+  let tuples = generateTuples (groups eqClass)
+      sortedTuples = customTupleSort tuples
+      conversionList = createConversionList sortedTuples [] 1
+  in 
+    EqClass {
+      groups = createRenamedEqGroups (groups eqClass) conversionList
+    }
 
 -- ************************** MINIMALNY AUTOMAT *********************
 
@@ -586,7 +659,8 @@ createMinimalDKA :: DKA -> DKA
 createMinimalDKA oldDKA = 
   let eqClass0 = createEqClass0 oldDKA
       eqClassMin = createMinimalEqClass eqClass0 (alphabet oldDKA)
-  in convertEqClassToDKA eqClassMin oldDKA    
+      renamedEqClass = createEqClassWithRenamedStates eqClassMin
+  in convertEqClassToDKA renamedEqClass oldDKA    
 
 -- ******************************** MAIN *****************************
 main = do
