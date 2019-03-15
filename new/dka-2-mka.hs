@@ -628,7 +628,7 @@ createEqClassWithRenamedStates :: EqClass -> EqClass
 createEqClassWithRenamedStates eqClass =
   let tuples = generateTuples (groups eqClass)
       sortedTuples = customTupleSort tuples
-      conversionList = createConversionList sortedTuples [] 1
+      conversionList = createConversionList sortedTuples [] 0
   in 
     EqClass {
       groups = createRenamedEqGroups (groups eqClass) conversionList
@@ -645,7 +645,7 @@ createMinimalEqClass eqClass alphabet =
   let groupMap = getGroupMap (groups eqClass) 
       i = convertGroupsToTuples (groups eqClass)
       ii = splitTuples i alphabet groupMap
-      renamedTuples = renameTuples ii 1
+      renamedTuples = renameTuples ii 0
       newGroupMap = createNewGroupMap renamedTuples
       fixedEndGroups = fixEndGroups renamedTuples newGroupMap
       newEqClass = createNewEqClass fixedEndGroups newGroupMap
