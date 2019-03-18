@@ -623,12 +623,37 @@ createRenamedEqGroups (x:xs) conversionList =
                     ] ++ createRenamedEqGroups xs conversionList
         Nothing -> error ("Chyba v prevode")
 
+-- najde prvok podla prveho parametra v dvojici
+findTuple :: String -> [(String, Int)] -> (String, Int)
+findTuple s (x:xs) =
+  if s == (fst x)
+    then x
+    else findTuple s xs
+
+-- zmaze prvok podla prveho parametra v dvojici
+deleteTuple :: String -> [(String, Int)] -> [(String, Int)]
+deleteTuple s v@(x:xs) =
+  if s == (fst x)
+    then xs
+    else x : deleteTuple s xs 
+
+-- spravi to aby startovaci stav v povodnom automate bol vzdy v skupine 0
+moveStartState :: [(String, Int)] -> [String] -> [(String, Int)]
+moveStartState [] _ = []
+moveStartState _ [] = []
+moveStartState list (s:ss) =
+  let elem = findTuple s list
+      rest = deleteTuple s list
+  in elem : rest
+
 -- konvertuje EqClass tak aby mala spravne premenovane stavy a prechody
-createEqClassWithRenamedStates :: EqClass -> EqClass
-createEqClassWithRenamedStates eqClass =
+createEqClassWithRenamedStates :: EqClass -> [String] -> EqClass
+createEqClassWithRenamedStates eqClass [] = eqClass
+createEqClassWithRenamedStates eqClass dkaStartStates =
   let tuples = generateTuples (groups eqClass)
       sortedTuples = customTupleSort tuples
-      conversionList = createConversionList sortedTuples [] 0
+      sortedWithStart = moveStartState sortedTuples dkaStartStates
+      conversionList = createConversionList sortedWithStart [] 0
   in 
     EqClass {
       groups = createRenamedEqGroups (groups eqClass) conversionList
@@ -659,7 +684,7 @@ createMinimalDKA :: DKA -> DKA
 createMinimalDKA oldDKA = 
   let eqClass0 = createEqClass0 oldDKA
       eqClassMin = createMinimalEqClass eqClass0 (alphabet oldDKA)
-      renamedEqClass = createEqClassWithRenamedStates eqClassMin
+      renamedEqClass = createEqClassWithRenamedStates eqClassMin (startStates oldDKA)
   in convertEqClassToDKA renamedEqClass oldDKA    
 
 -- ******************************** MAIN *****************************
