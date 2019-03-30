@@ -705,7 +705,7 @@ checkStates :: [String] -> [String]
 checkStates [] = []
 checkStates input = 
   foldr (\state states -> 
-      if length [checkState state] < length state
+      if length (checkState state) < length state
         then states
         else [checkState state] ++ states
       ) [] (input)
