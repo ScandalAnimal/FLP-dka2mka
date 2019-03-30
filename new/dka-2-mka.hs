@@ -84,6 +84,7 @@ customSplit d s = x : customSplit d (drop 1 y) where (x,y) = span (/= d) s
 
 -- z abecedy v jednom stringu spravi list
 parseAlphabet :: [String] -> [String]
+parseAlphabet [] = []
 parseAlphabet [x] = [(customSplit ',' x)!!1] 
 parseAlphabet (x:xs) = [(customSplit ',' x)!!1] ++ parseAlphabet xs 
 
@@ -176,7 +177,7 @@ createReachableStates startStates transitions =
 
 -- vyfiltruje koncove stavy zo zoznamu vsetkych dostupnych stavov
 createReachableEndStates :: [String] -> [String] -> [String]
-createReachableEndStates reachables endStatess = sort (intersect reachables endStatess)
+createReachableEndStates reachables endStates = sort (intersect reachables endStates)
 
 -- -- ****************** ELIMINACIA NEDOSIAHNUTELNYCH PRECHODOV **********
 
@@ -518,6 +519,7 @@ getGroupNumbers (x:xs) = [show (groupId x)] ++ getGroupNumbers xs
 
 -- ak sa stav nachadza v danej skupine, tak vrati jej id
 findGroup :: String -> [EqGroup] -> String
+findGroup _ [] = []
 findGroup state (x:xs) =
   if state `elem` (stateList x)
     then show (groupId x)
@@ -687,6 +689,35 @@ createMinimalDKA oldDKA =
       renamedEqClass = createEqClassWithRenamedStates eqClassMin (startStates oldDKA)
   in convertEqClassToDKA renamedEqClass oldDKA    
 
+-- ****************************** KONTROLA VSTUPU *********************
+checkAlphabet :: DKA -> (Int, DKA)
+checkAlphabet dka =
+  let 
+    wrongSymbols = foldr (\symbol symbols -> 
+      if (length symbol) > 1
+        then symbols
+        else [symbol] ++ symbols) [] (alphabet dka)
+    newDKA = DKA {
+      allStates = allStates dka,
+      startStates = startStates dka,
+      endStates = endStates dka,
+      transitions = transitions dka,
+      alphabet = wrongSymbols
+    }
+  in 
+    if (length wrongSymbols) < (length (alphabet dka))
+      then 
+        (1, newDKA)
+      else 
+        (0, newDKA)  
+
+minimize :: DKA -> String -> IO ()
+minimize dka switcher = 
+  case switcher of 
+    "-i" -> printCustomDKA dka
+    "-t" -> printDKA (createMinimalDKA (createFullyDefinedDKA dka))
+    _ -> error "Chybny prepinac"
+
 -- ******************************** MAIN *****************************
 main = do
     args <- getArgs
@@ -698,12 +729,16 @@ main = do
         contents <- getContentsFromInput handle args
 
         let formattedInput = formatInput (lines contents)
-
+        let checkedAlphabet = checkAlphabet formattedInput
+        
         let switcher = args!!0
-        case switcher of 
-          "-i" -> printCustomDKA formattedInput
-          "-t" -> printDKA (createMinimalDKA (createFullyDefinedDKA formattedInput))
-          _ -> error "Chybny prepinac"
+        -- putStrLn (show (fst checkedAlphabet))
+        -- printCustomDKA (snd checkedAlphabet)
+        if (fst checkedAlphabet) == 0
+          then 
+            minimize (snd checkedAlphabet) switcher
+          else 
+            error "Chybny vstup"    
         hClose handle
 
     return ()
