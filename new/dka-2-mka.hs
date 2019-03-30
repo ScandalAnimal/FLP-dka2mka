@@ -10,7 +10,7 @@ import Data.Char
 import Data.List (sortBy)
 import Data.Function (on)
 
--- ****************** DATOVE TYPY *****************************
+-- ~~~~~~~~~~~~~~~~~~ DATOVE TYPY ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- vlastna reprezentacia prechodov
 data Transition = Transition {
@@ -49,7 +49,7 @@ data EqClass = EqClass {
 -- reprezentacia sink stavu
 sink = "sink"
 
--- ****************** NACITANIE VSTUPU *****************************
+-- ~~~~~~~~~~~~~~~~~~ NACITANIE VSTUPU ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- podla poctu argumentov vrati stdin alebo otvoreny subor
 getHandle :: [String] -> IO Handle
@@ -74,7 +74,7 @@ getContentsFromInput handle args =
     then readFromStdin handle ""
     else hGetContents handle
 
--- ****************** FORMATOVANIE VSTUPU *****************************
+-- ~~~~~~~~~~~~~~~~~~ FORMATOVANIE VSTUPU ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- funkcia na rozdelenie stringu na znaku
 -- https://stackoverflow.com/questions/4978578/how-to-split-a-string-in-haskell
@@ -112,7 +112,7 @@ formatInput input = DKA {
   endStates = (customSplit ',' (input!!2))
 }
 
--- ****************** VYPIS *****************************
+-- ~~~~~~~~~~~~~~~~~~ VYPIS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 printTransition :: Transition -> IO ()
 printTransition transition = do
@@ -144,7 +144,7 @@ printDKA dka = do
   putStrLn (intercalate "," (endStates dka))
   mapM_ printTransition (transitions dka)  
 
--- ****************** ELIMINACIA NEDOSIAHNUTELNYCH STAVOV ***********
+-- ~~~~~~~~~~~~~~~~~~ ELIMINACIA NEDOSIAHNUTELNYCH STAVOV ~~~~~~~~~~~
 
 -- pre dany stav x najde vsetky stavy do ktorych su prechody
 getReachableStatesFromOneState :: [String] -> [Transition] -> [String]
@@ -179,7 +179,7 @@ createReachableStates startStates transitions =
 createReachableEndStates :: [String] -> [String] -> [String]
 createReachableEndStates reachables endStates = sort (intersect reachables endStates)
 
--- -- ****************** ELIMINACIA NEDOSIAHNUTELNYCH PRECHODOV **********
+-- -- ~~~~~~~~~~~~~~~~~~ ELIMINACIA NEDOSIAHNUTELNYCH PRECHODOV ~~~~~~~~~~
 
 -- zmaze tie prechody ktore vedu do nedostupnych stavov, alebo z nich vychadzaju
 createReachableTransitions :: [Transition] -> [String] -> [Transition]
@@ -190,7 +190,7 @@ createReachableTransitions (x:xs) allStates =
     then [x] ++ createReachableTransitions xs allStates
     else createReachableTransitions xs allStates
 
--- -- ****************** PRECHODY DO SINK *****************************
+-- -- ~~~~~~~~~~~~~~~~~~ PRECHODY DO SINK ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- vlozi prechod zo "sink" do "sink"
 createSinkTransition :: String -> String -> Transition
@@ -232,7 +232,7 @@ addSinkToSinkTransitions [] = []
 addSinkToSinkTransitions (x:xs) = [createSinkTransition sink x] ++ (addSinkToSinkTransitions xs)
 
 
--- ****************** UPLNY AUTOMAT *****************************
+-- ~~~~~~~~~~~~~~~~~~ UPLNY AUTOMAT ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 createFullyDefinedDKA :: DKA -> DKA
 createFullyDefinedDKA dka = 
@@ -248,7 +248,7 @@ createFullyDefinedDKA dka =
       alphabet = alphabet dka
     }
 
--- ***************** EKVIVALENCNA TRIEDA 0 ***************************
+-- ~~~~~~~~~~~~~~~~~ EKVIVALENCNA TRIEDA 0 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- ziska zoznam vsetkych vstupnych stavov zo zoznamu prechodov
 getStateListFromTransitions :: [EqTransition] -> [String]
@@ -320,7 +320,7 @@ createEqClass0 dka =
     groups = createEqGroupsFromTuples0 dka
   }
 
--- ********************* MAPA STAVOV V SKUPINACH ************************
+-- ~~~~~~~~~~~~~~~~~~~~~ MAPA STAVOV V SKUPINACH ~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- vytvori zoznam skupin do ktorych vedu prechody
 createGroupMapEntry :: [EqTransition] -> [Int]
@@ -355,7 +355,7 @@ createNewGroupMap :: [(Int, [[EqTransition]])] -> [(Int, [String])]
 createNewGroupMap [] = []
 createNewGroupMap (x:xs) = [((fst x), sort (nub (getStatesFromTransitionLists(snd x))))] ++ createNewGroupMap xs
 
--- ******************** ROZDELOVANIE SKUPIN **************************
+-- ~~~~~~~~~~~~~~~~~~~~ ROZDELOVANIE SKUPIN ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- skupiny v ekv. triede skonvertuje na tuples, je to priprava na rozdelovanie skupin na mensie
 convertGroupsToTuples :: [EqGroup] -> [(Int, [[EqTransition]])]
@@ -434,7 +434,7 @@ splitTuples (x:xs) alphabet groupMap =
       newTransitionLists = filter (not . null) (createNewEqTransitionLists (snd x) alphabet entry)
   in [((fst x), newTransitionLists)] ++ splitTuples xs alphabet groupMap
 
--- ************************* PREMENOVANIE SKUPIN *********************
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~ PREMENOVANIE SKUPIN ~~~~~~~~~~~~~~~~~~~~~
 
 renameOneTuple :: Int -> [[EqTransition]] -> [(Int, [[EqTransition]])]
 renameOneTuple _ [] = []
@@ -446,7 +446,7 @@ renameTuples (x:xs) i =
   let len = (length (snd x)) + i
   in renameOneTuple i (snd x) ++ renameTuples xs len
 
--- ********************* OPRAVA KONCOVYCH STAVOV *********************************
+-- ~~~~~~~~~~~~~~~~~~~~~ OPRAVA KONCOVYCH STAVOV ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- vrati nove group id podla toho do ktorej skupiny patri stav po novom
 getGroupId :: [(Int, [String])] -> String -> Int
@@ -480,7 +480,7 @@ fixEndGroups [] _ = []
 fixEndGroups _ [] = []
 fixEndGroups (x:xs) groupMap = [((fst x), getTransitionsWithFixedEndGroup (snd x) groupMap)] ++ fixEndGroups xs groupMap
 
--- ******************** NOVA EKVIVALENCNA TRIEDA ************************
+-- ~~~~~~~~~~~~~~~~~~~~ NOVA EKVIVALENCNA TRIEDA ~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- vrati zoznam stavov pre danu skupinu
 getStatesInGroup :: Int -> [(Int, [String])] -> [String]
@@ -510,7 +510,7 @@ createNewEqClass tuples groupMap =
     groups = createEqGroupsFromTuples tuples groupMap
   } 
 
--- ******************** KONVERZIA NA DKA ****************************
+-- ~~~~~~~~~~~~~~~~~~~~ KONVERZIA NA DKA ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- pre zoznam skupin vrati ich idcka
 getGroupNumbers :: [EqGroup] -> [String]
@@ -565,7 +565,7 @@ convertEqClassToDKA eqClass oldDKA =
     transitions = newTransitions
   }  
 
--- ****************** PREMENOVANIE PRED VYPISOM ***********************
+-- ~~~~~~~~~~~~~~~~~~ PREMENOVANIE PRED VYPISOM ~~~~~~~~~~~~~~~~~~~~~~~
 
 -- funkcia zoradi list dvojic podla fst
 -- https://stackoverflow.com/questions/30380697/sort-tuples-by-one-of-their-elements-in-haskell
@@ -661,7 +661,7 @@ createEqClassWithRenamedStates eqClass dkaStartStates =
       groups = createRenamedEqGroups (groups eqClass) conversionList
     }
 
--- ************************** MINIMALNY AUTOMAT *********************
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~ MINIMALNY AUTOMAT ~~~~~~~~~~~~~~~~~~~~~
 
 -- algoritmus minimalizacie z TIN, do i si ulozi aktualnu situaciu
 -- do ii potom zmenene prechody po 1 kroku algoritmu, kde sa skupiny rozdelia
@@ -689,7 +689,9 @@ createMinimalDKA oldDKA =
       renamedEqClass = createEqClassWithRenamedStates eqClassMin (startStates oldDKA)
   in convertEqClassToDKA renamedEqClass oldDKA    
 
--- ****************************** KONTROLA VSTUPU *********************
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ KONTROLA VSTUPU ~~~~~~~~~~~~~~~~~~~~~
+
+-- kontrola ci stav sa sklada z cisiel
 checkState :: String -> String
 checkState [] = []
 checkState [x] =
@@ -701,6 +703,7 @@ checkState (x:xs) =
     then [x] ++ checkState xs
     else []  
 
+-- kontrola formatu stavu
 checkStates :: [String] -> [String]     
 checkStates [] = []
 checkStates input = 
@@ -710,6 +713,7 @@ checkStates input =
         else [checkState state] ++ states
       ) [] (input)
 
+-- kontrola formatu jednotlivych poloziek vstupu
 checkInput :: DKA -> (Bool, DKA)
 checkInput dka =
   let 
@@ -739,6 +743,7 @@ checkInput dka =
       else 
         (True, newDKA)  
 
+-- minimalizuje vstup podla parametra
 minimize :: DKA -> String -> IO ()
 minimize dka switcher = 
   case switcher of 
@@ -746,7 +751,7 @@ minimize dka switcher =
     "-t" -> printDKA (createMinimalDKA (createFullyDefinedDKA dka))
     _ -> error "Chybny prepinac"
 
--- ******************************** MAIN *****************************
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ MAIN ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 main = do
     args <- getArgs
     let argCount = length args
