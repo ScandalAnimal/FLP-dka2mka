@@ -126,15 +126,15 @@ printTransition transition = do
 printCustomDKA :: DKA -> IO ()
 printCustomDKA dka = do
   putStrLn "Stavy: "
-  putStrLn (intercalate "," (allStates dka))
+  putStrLn (intercalate "," (sort (allStates dka)))
   putStrLn "Abeceda: "
-  putStrLn (intercalate "," (alphabet dka))
+  putStrLn (intercalate "," (sort (alphabet dka)))
   putStrLn "Prechody: "
-  mapM_ printTransition (transitions dka)
+  mapM_ printTransition (sort (transitions dka))
   putStrLn "Startovaci stav: "
-  putStrLn (intercalate "," (startStates dka))
+  putStrLn (intercalate "," (sort (startStates dka)))
   putStrLn "Koncove stavy: "
-  putStrLn (intercalate "," (endStates dka))
+  putStrLn (intercalate "," (sort (endStates dka)))
   
 -- prepinac -t
 printDKA :: DKA -> IO ()
@@ -699,7 +699,16 @@ checkState [x] =
 checkState (x:xs) = 
   if isDigit x
     then [x] ++ checkState xs
-    else []    
+    else []  
+
+checkStates :: [String] -> [String]     
+checkStates [] = []
+checkStates input = 
+  foldr (\state states -> 
+      if length [checkState state] < length state
+        then states
+        else [checkState state] ++ states
+      ) [] (input)
 
 checkInput :: DKA -> (Bool, DKA)
 checkInput dka =
@@ -708,21 +717,9 @@ checkInput dka =
       if (length symbol) == 1
         then [symbol] ++ symbols
         else symbols) [] (alphabet dka)
-    correctStates = foldr (\state states -> 
-      if length [checkState state] < length state
-        then states
-        else [checkState state] ++ states
-      ) [] (allStates dka)
-    correctStartStates = foldr (\state states -> 
-      if length [checkState state] < length state
-        then states
-        else [checkState state] ++ states
-      ) [] (startStates dka)
-    correctEndStates = foldr (\state states -> 
-      if length [checkState state] < length state
-        then states
-        else [checkState state] ++ states
-      ) [] (endStates dka)
+    correctStates = checkStates (allStates dka)
+    correctStartStates = checkStates (startStates dka)
+    correctEndStates = checkStates (endStates dka)
 
     newDKA = DKA {
       allStates = correctStates,
