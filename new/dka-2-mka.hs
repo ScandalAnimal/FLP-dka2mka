@@ -122,27 +122,13 @@ printTransition transition = do
   putStr ","
   putStrLn (to transition) 
 
--- prepinac -i
-printCustomDKA :: DKA -> IO ()
-printCustomDKA dka = do
-  putStrLn "Stavy: "
-  putStrLn (intercalate "," (sort (allStates dka)))
-  putStrLn "Abeceda: "
-  putStrLn (intercalate "," (sort (alphabet dka)))
-  putStrLn "Prechody: "
-  mapM_ printTransition (sort (transitions dka))
-  putStrLn "Startovaci stav: "
-  putStrLn (intercalate "," (sort (startStates dka)))
-  putStrLn "Koncove stavy: "
-  putStrLn (intercalate "," (sort (endStates dka)))
-  
--- prepinac -t
+-- vypis DKA
 printDKA :: DKA -> IO ()
 printDKA dka = do
-  putStrLn (intercalate "," (allStates dka))
-  putStrLn (intercalate "," (startStates dka))
-  putStrLn (intercalate "," (endStates dka))
-  mapM_ printTransition (transitions dka)  
+  putStrLn (intercalate "," (sort (allStates dka)))
+  putStrLn (intercalate "," (sort (startStates dka)))
+  putStrLn (intercalate "," (sort (endStates dka)))
+  mapM_ printTransition (sort (transitions dka))  
 
 -- ~~~~~~~~~~~~~~~~~~ ELIMINACIA NEDOSIAHNUTELNYCH STAVOV ~~~~~~~~~~~
 
@@ -747,7 +733,7 @@ checkInput dka =
 minimize :: DKA -> String -> IO ()
 minimize dka switcher = 
   case switcher of 
-    "-i" -> printCustomDKA dka
+    "-i" -> printDKA dka
     "-t" -> printDKA (createMinimalDKA (createFullyDefinedDKA dka))
     _ -> error "Chybny prepinac"
 
@@ -765,8 +751,6 @@ main = do
         let checkedInput = checkInput formattedInput
         
         let switcher = args!!0
-        -- putStrLn (show (fst checkedInput))
-        -- printCustomDKA (snd checkedInput)
         if (fst checkedInput) == True
           then 
             minimize (snd checkedInput) switcher
