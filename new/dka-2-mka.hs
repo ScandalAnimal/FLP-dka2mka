@@ -690,26 +690,57 @@ createMinimalDKA oldDKA =
   in convertEqClassToDKA renamedEqClass oldDKA    
 
 -- ****************************** KONTROLA VSTUPU *********************
-checkAlphabet :: DKA -> (Int, DKA)
-checkAlphabet dka =
+checkState :: String -> String
+checkState [] = []
+checkState [x] =
+  if isDigit x
+    then [x]
+    else []
+checkState (x:xs) = 
+  if isDigit x
+    then [x] ++ checkState xs
+    else []    
+
+checkInput :: DKA -> (Bool, DKA)
+checkInput dka =
   let 
-    wrongSymbols = foldr (\symbol symbols -> 
-      if (length symbol) > 1
-        then symbols
-        else [symbol] ++ symbols) [] (alphabet dka)
+    correctAlphabet = foldr (\symbol symbols -> 
+      if (length symbol) == 1
+        then [symbol] ++ symbols
+        else symbols) [] (alphabet dka)
+    correctStates = foldr (\state states -> 
+      if length [checkState state] < length state
+        then states
+        else [checkState state] ++ states
+      ) [] (allStates dka)
+    correctStartStates = foldr (\state states -> 
+      if length [checkState state] < length state
+        then states
+        else [checkState state] ++ states
+      ) [] (startStates dka)
+    correctEndStates = foldr (\state states -> 
+      if length [checkState state] < length state
+        then states
+        else [checkState state] ++ states
+      ) [] (endStates dka)
+
     newDKA = DKA {
-      allStates = allStates dka,
-      startStates = startStates dka,
-      endStates = endStates dka,
+      allStates = correctStates,
+      startStates = correctStartStates,
+      endStates = correctEndStates,
       transitions = transitions dka,
-      alphabet = wrongSymbols
+      alphabet = correctAlphabet
     }
   in 
-    if (length wrongSymbols) < (length (alphabet dka))
+    if ((length correctAlphabet) < (length (alphabet dka))) ||
+      ((length correctStates) < (length (allStates dka))) || 
+      (length (allStates dka)) < 1 ||
+      (length (allStates dka)) < (length (startStates dka)) ||
+      (length (allStates dka)) < (length (endStates dka))
       then 
-        (1, newDKA)
+        (False, newDKA)
       else 
-        (0, newDKA)  
+        (True, newDKA)  
 
 minimize :: DKA -> String -> IO ()
 minimize dka switcher = 
@@ -729,14 +760,14 @@ main = do
         contents <- getContentsFromInput handle args
 
         let formattedInput = formatInput (lines contents)
-        let checkedAlphabet = checkAlphabet formattedInput
+        let checkedInput = checkInput formattedInput
         
         let switcher = args!!0
-        -- putStrLn (show (fst checkedAlphabet))
-        -- printCustomDKA (snd checkedAlphabet)
-        if (fst checkedAlphabet) == 0
+        -- putStrLn (show (fst checkedInput))
+        -- printCustomDKA (snd checkedInput)
+        if (fst checkedInput) == True
           then 
-            minimize (snd checkedAlphabet) switcher
+            minimize (snd checkedInput) switcher
           else 
             error "Chybny vstup"    
         hClose handle
