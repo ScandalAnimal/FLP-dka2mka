@@ -1,0 +1,15 @@
+state_A,state_B,state_C,state_D,state_E,state_F
+state_A
+state_A,state_F
+state_A,1,state_F
+state_A,2,state_B
+state_B,1,state_E
+state_B,2,state_D
+state_C,1,state_C
+state_C,2,state_F
+state_D,1,state_D
+state_D,2,state_A
+state_E,1,state_B
+state_E,2,state_C
+state_F,1,state_A
+state_F,2,state_E
