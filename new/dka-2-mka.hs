@@ -708,13 +708,11 @@ checkInput dka =
         then [symbol] ++ symbols
         else symbols) [] (alphabet dka)
     correctStates = checkStates (allStates dka)
-    correctStartStates = checkStates (startStates dka)
-    correctEndStates = checkStates (endStates dka)
 
     newDKA = DKA {
       allStates = correctStates,
-      startStates = correctStartStates,
-      endStates = correctEndStates,
+      startStates = startStates dka,
+      endStates = endStates dka,
       transitions = transitions dka,
       alphabet = correctAlphabet
     }
