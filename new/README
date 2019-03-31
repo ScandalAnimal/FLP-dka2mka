@@ -1,0 +1,31 @@
+Autor: Maroš Vasilišin
+Login: xvasil02
+Rok: 2019
+
+Projekt DKA-2-MKA
+
+Program konvertuje deterministický konečný automat na minimálny DKA s totálnou prechodovou funkciou.
+Stavy výsledného automatu sú číslované od nuly. Stavy sú celé čísla, symboly abecedy sú malé písmenká.
+
+Spustenie:
+
+	dka-2-mka volba [vstup]
+
+- vstup je názov súboru, ak je prázdny tak sa berie stdin
+- volba môže byť:
+	-i len vypíše do vnútornej reprezentácie konvertovaný automat (zoradené stavy a prechody)
+	-t zminimalizuje automat 	
+
+
+Formát vstupu:
+
+	<zoznam všetkých stavov>\n
+	<počiatočný stav>\n
+	<zoznam koncových stavov>\n
+	<pravidlo 1>\n
+	...
+	<pravidlo N>\n
+
+Formát výstupu:	
+
+	rovnaký ako vstup + stavy sú číslované od nuly, vstupný stav je vždy 0, pravidlá sú zoradené lexikograficky podľa vstupného stavu a symbolu abecedy
